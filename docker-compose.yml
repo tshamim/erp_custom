@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp_dev_password
+      POSTGRES_DB: erp_control
+    ports: ["5440:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp_control"]
+      interval: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["6390:6379"]
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: erp
+      MINIO_ROOT_PASSWORD: erp_dev_password
+    ports: ["9010:9000", "9011:9001"]
+    volumes: [miniodata:/data]
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8035:8025", "1035:1025"]
+volumes:
+  pgdata:
+  miniodata:

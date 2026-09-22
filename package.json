@@ -1,0 +1,14 @@
+{
+  "name": "custom-erp",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "build:packages": "pnpm --filter @erp/shared --filter @erp/db build",
+    "dev": "pnpm build:packages && pnpm -r --parallel --filter @erp/api --filter @erp/web dev",
+    "db:generate": "pnpm --filter @erp/db generate",
+    "db:migrate:control": "pnpm --filter @erp/db migrate:control",
+    "db:migrate:tenants": "pnpm --filter @erp/db migrate:tenants",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

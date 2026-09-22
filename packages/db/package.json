@@ -1,0 +1,28 @@
+{
+  "name": "@erp/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json -w",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate": "drizzle-kit generate --config drizzle.control.config.ts && drizzle-kit generate --config drizzle.tenant.config.ts",
+    "migrate:control": "pnpm build && node dist/cli/migrate-control.js",
+    "migrate:tenants": "pnpm build && node dist/cli/migrate-tenants.js"
+  },
+  "dependencies": {
+    "@erp/shared": "workspace:*",
+    "@node-rs/argon2": "^2.0.2",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.38.4",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.30.2",
+    "typescript": "^5.7.3"
+  }
+}
