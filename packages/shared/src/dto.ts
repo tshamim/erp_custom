@@ -276,6 +276,9 @@ export const paymentSchema = z.object({
   amount: positiveDecimal,
   tdsCodeId: optUuid,
   vdsCodeId: optUuid,
+  /** Override the computed withholding (default: rate × amount) when the legal base differs, e.g. excludes VAT. */
+  tdsAmount: nonNegDecimal.nullish(),
+  vdsAmount: nonNegDecimal.nullish(),
   projectId: optUuid,
   notes: optStr,
   allocations: z

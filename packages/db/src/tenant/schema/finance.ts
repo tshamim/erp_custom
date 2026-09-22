@@ -197,7 +197,8 @@ export const bills = pgTable(
     fxRate: rate('fx_rate').notNull().default('1'),
     subtotal: money('subtotal').notNull().default('0'),
     vatAmount: money('vat_amount').notNull().default('0'),
-    total: money('total').notNull().default('0'),
+    retentionAmount: money('retention_amount').notNull().default('0'),
+    total: money('total').notNull().default('0'), // payable = subtotal + vat - retention
     paidAmount: money('paid_amount').notNull().default('0'),
     status: varchar('status', { length: 20 }).notNull().default('draft'),
     notes: text('notes'),
