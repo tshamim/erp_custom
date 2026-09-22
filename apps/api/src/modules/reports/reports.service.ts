@@ -223,13 +223,13 @@ export class ReportsService {
     const db = this.ctx.db;
     const today = new Date().toISOString().slice(0, 10);
     const monthStart = `${today.slice(0, 7)}-01`;
-    const accBal = async (subtypes: string[]) => {
+    const accBal = async (subtypes: string[], type: 'asset' | 'liability') => {
       const [r] = await db
         .select({ bal: sql<string>`coalesce(sum(${t.journalLines.debit} - ${t.journalLines.credit}), 0)` })
         .from(t.journalLines)
         .innerJoin(t.journalEntries, eq(t.journalEntries.id, t.journalLines.entryId))
         .innerJoin(t.accounts, eq(t.accounts.id, t.journalLines.accountId))
-        .where(and(POSTED, inArray(t.accounts.subtype, subtypes)));
+        .where(and(POSTED, inArray(t.accounts.subtype, subtypes), eq(t.accounts.type, type)));
       return D(r.bal);
     };
     const [projects] = await db
@@ -279,10 +279,10 @@ export class ReportsService {
       .orderBy(sql`to_char(${t.journalEntries.date}, 'YYYY-MM')`);
 
     return {
-      cash: m2(await accBal(['cash', 'bank'])),
-      receivable: m2(await accBal(['receivable'])),
-      payable: m2((await accBal(['payable'])).negated()),
-      retentionReceivable: m2(await accBal(['retention'])),
+      cash: m2(await accBal(['cash', 'bank'], 'asset')),
+      receivable: m2(await accBal(['receivable'], 'asset')),
+      payable: m2((await accBal(['payable'], 'liability')).negated()),
+      retentionReceivable: m2(await accBal(['retention'], 'asset')),
       stockValue: m2(stock.value),
       monthIncome: pl.totalIncome,
       monthExpense: pl.totalExpense,
