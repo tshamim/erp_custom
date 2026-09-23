@@ -3,8 +3,8 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: erp
-      POSTGRES_PASSWORD: erp_dev_password
+      POSTGRES_USER: ${PG_ADMIN_USER:-erp}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?set PG_ADMIN_PASSWORD in .env}
       POSTGRES_DB: erp_control
     ports: ["5440:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
@@ -21,8 +21,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: erp
-      MINIO_ROOT_PASSWORD: erp_dev_password
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-erp}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env}
     ports: ["9010:9000", "9011:9001"]
     volumes: [miniodata:/data]
     healthcheck:
@@ -45,7 +45,7 @@ services:
     environment: &backend_env
       PG_HOST: postgres
       PG_PORT: "5432"
-      CONTROL_DATABASE_URL: postgres://erp:erp_dev_password@postgres:5432/erp_control
+      CONTROL_DATABASE_URL: postgres://${PG_ADMIN_USER:-erp}:${PG_ADMIN_PASSWORD}@postgres:5432/erp_control
       # Tenant rows store the host they were provisioned from; inside the network it is `postgres`.
       TENANT_DB_HOST: postgres
       TENANT_DB_PORT: "5432"
