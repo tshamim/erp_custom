@@ -60,16 +60,40 @@ Platform actions never bypass tenant isolation: the owner still acts through a t
 
 ## Getting started
 
-Prerequisites: Node 22+, pnpm 9, Docker.
+Prerequisites: Docker. (Node 22+ and pnpm 9 as well, if you want hot reload.)
+
+### Everything in Docker
 
 ```bash
-cp .env.example .env          # then set TENANT_SECRET_KEY / JWT secrets (openssl rand -hex 32)
-docker compose -p custom_erp up -d
-pnpm install
-pnpm build:packages
-pnpm db:migrate:control       # control DB + platform admin from .env
-pnpm dev                      # API :4100, web :3100
+cp .env.example .env               # then set TENANT_SECRET_KEY / JWT secrets (openssl rand -hex 32)
+docker compose -p custom_erp up -d --build
 ```
+
+That brings up Postgres, Redis, MinIO and Mailpit, runs the control-plane and tenant migrations once
+(the `migrate` service), then starts the API on :4100 and the web app on :3100. Every service is
+`restart: unless-stopped`, so they come back on reboot with Docker Desktop.
+
+```bash
+docker compose -p custom_erp ps            # status
+docker compose -p custom_erp logs -f api   # follow a service
+docker compose -p custom_erp down          # stop (data volumes survive)
+```
+
+After changing application code, rebuild the image: `docker compose -p custom_erp up -d --build api web`.
+
+### Hot-reload development
+
+Run the infrastructure in Docker and the apps on the host:
+
+```bash
+docker compose -p custom_erp up -d postgres redis minio mailpit
+pnpm install && pnpm build:packages
+pnpm db:migrate:control
+pnpm dev                           # API :4100, web :3100 with hot reload
+```
+
+Stop the containerised apps first if they are running (`docker compose -p custom_erp stop api web`),
+otherwise the ports clash.
 
 1. Sign in at http://localhost:3100/platform/login with `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD`.
 2. Click **New company**. Its database is provisioned in about a second.
@@ -80,6 +104,12 @@ pnpm dev                      # API :4100, web :3100
    ```
 
 Ports are remapped (Postgres 5440, Redis 6390, MinIO 9010/9011, Mailpit 8035) so they don't clash with other local stacks.
+
+Tenant databases record the host they were provisioned from. `TENANT_DB_HOST` / `TENANT_DB_PORT`
+override that at runtime, which is how the same rows work from the host (`localhost:5440`) and from
+inside the compose network (`postgres:5432`). The web image bakes `NEXT_PUBLIC_API_URL` into the client
+bundle at build time, so it must be the address a *browser* can reach — pass it as a build arg when
+deploying somewhere other than localhost.
 
 ## Development
 

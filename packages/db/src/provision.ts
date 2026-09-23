@@ -31,10 +31,15 @@ export function adminConnectionFromEnv(): AdminConnection {
 
 export type TenantDbRow = typeof tenantDatabases.$inferSelect;
 
+/**
+ * Connection for a tenant database. TENANT_DB_HOST / TENANT_DB_PORT override what was stored at
+ * provisioning time, so the same rows work from the host (localhost:5440) and from inside a
+ * container on the compose network (postgres:5432).
+ */
 export function tenantPoolConfig(row: TenantDbRow) {
   return {
-    host: row.host,
-    port: row.port,
+    host: process.env.TENANT_DB_HOST || row.host,
+    port: Number(process.env.TENANT_DB_PORT || row.port),
     database: row.dbName,
     user: row.dbUser,
     password: decryptSecret(row.dbPasswordEnc),

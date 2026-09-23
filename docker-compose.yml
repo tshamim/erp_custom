@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: erp
       POSTGRES_PASSWORD: erp_dev_password
@@ -13,18 +14,73 @@ services:
       retries: 10
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports: ["6390:6379"]
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: erp
       MINIO_ROOT_PASSWORD: erp_dev_password
     ports: ["9010:9000", "9011:9001"]
     volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      retries: 10
   mailpit:
     image: axllent/mailpit:latest
+    restart: unless-stopped
     ports: ["8035:8025", "1035:1025"]
+
+  # One-shot: control-plane schema + pending migrations for every tenant database.
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: erp-api
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+    env_file: [.env]
+    environment: &backend_env
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      CONTROL_DATABASE_URL: postgres://erp:erp_dev_password@postgres:5432/erp_control
+      # Tenant rows store the host they were provisioned from; inside the network it is `postgres`.
+      TENANT_DB_HOST: postgres
+      TENANT_DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+    command: sh -c "node packages/db/dist/cli/migrate-control.js && node packages/db/dist/cli/migrate-tenants.js"
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: erp-api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_started }
+      migrate: { condition: service_completed_successfully }
+    env_file: [.env]
+    environment:
+      <<: *backend_env
+      API_PORT: "4100"
+    ports: ["4100:4100"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked into the browser bundle, so it must be reachable from the browser, not the network alias.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4100}
+    image: erp-web
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    ports: ["3100:3100"]
+
 volumes:
   pgdata:
   miniodata:

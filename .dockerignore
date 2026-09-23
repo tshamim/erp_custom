@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+.git
+.env
+CREDENTIALS.local.md
+shots
+*.log
