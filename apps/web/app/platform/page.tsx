@@ -81,41 +81,41 @@ function Overview({ data }: { data: Row }) {
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase text-slate-500">
               <tr>
-                <th className="pb-2">Company</th>
-                <th className="pb-2">Database</th>
-                <th className="pb-2">Modules</th>
-                <th className="pb-2 text-right">Users</th>
-                <th className="pb-2 text-right">Projects</th>
-                <th className="pb-2 text-right">Invoiced</th>
-                <th className="pb-2 text-right">Size</th>
-                <th className="pb-2">Last activity</th>
-                <th className="pb-2">Status</th>
+                <th className="px-3 pb-2">Company</th>
+                <th className="px-3 pb-2">Database</th>
+                <th className="px-3 pb-2">Modules</th>
+                <th className="px-3 pb-2 text-right">Users</th>
+                <th className="px-3 pb-2 text-right">Projects</th>
+                <th className="px-3 pb-2 text-right">Invoiced</th>
+                <th className="px-3 pb-2 text-right">Size</th>
+                <th className="px-3 pb-2">Last activity</th>
+                <th className="px-3 pb-2">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {tenants.map((tn) => (
                 <tr key={tn.id} className="cursor-pointer hover:bg-brand-50/40" onClick={() => (window.location.href = `/platform/tenants/${tn.id}`)}>
-                  <td className="py-2">
+                  <td className="px-3 py-2">
                     <Link href={`/platform/tenants/${tn.id}`} className="font-medium text-slate-800 hover:text-brand-600">
                       {tn.name}
                     </Link>
                     <div className="font-mono text-xs text-slate-400">{tn.slug}</div>
                   </td>
-                  <td className="font-mono text-xs text-slate-500">
+                  <td className="px-3 font-mono text-xs text-slate-500">
                     <span className="inline-flex items-center gap-1">
                       <Database className="h-3 w-3" />
                       {tn.dbName ?? '—'}
                     </span>
                   </td>
-                  <td>
+                  <td className="px-3">
                     <span className="text-xs text-slate-600">{(tn.modules as string[]).length}/{MODULE_KEYS.length}</span>
                   </td>
-                  <td className="num text-right">{tn.stats?.users.total ?? '—'}</td>
-                  <td className="num text-right">{tn.stats?.projects.active ?? '—'}</td>
-                  <td className="num text-right">{tn.stats ? money(tn.stats.sales.total) : '—'}</td>
-                  <td className="num text-right">{bytes(tn.dbSizeBytes)}</td>
-                  <td className="text-xs text-slate-500">{tn.stats?.activity.lastAt ? dateTime(tn.stats.activity.lastAt) : '—'}</td>
-                  <td>
+                  <td className="num px-3 text-right">{tn.stats?.users.total ?? '—'}</td>
+                  <td className="num px-3 text-right">{tn.stats?.projects.active ?? '—'}</td>
+                  <td className="num px-3 text-right">{tn.stats ? money(tn.stats.sales.total) : '—'}</td>
+                  <td className="num px-3 text-right">{bytes(tn.dbSizeBytes)}</td>
+                  <td className="whitespace-nowrap px-3 text-xs text-slate-500">{tn.stats?.activity.lastAt ? dateTime(tn.stats.activity.lastAt) : '—'}</td>
+                  <td className="px-3">
                     <Badge value={tn.status} />
                   </td>
                 </tr>
