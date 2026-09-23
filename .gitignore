@@ -5,3 +5,4 @@ dist
 *.log
 .turbo
 coverage
+CREDENTIALS.local.md
