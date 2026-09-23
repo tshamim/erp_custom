@@ -43,7 +43,7 @@ export class AuthGuard implements CanActivate {
     if (payload.scope !== 'tenant') throw new ForbiddenException('Tenant user token required');
     const tenant = this.ctx.tenantOrNull;
     if (!tenant || tenant.id !== payload.tid) throw new ForbiddenException('Token does not belong to this company');
-    this.ctx.setUser(payload.sub);
+    this.ctx.setUser(payload.sub, payload.imp?.email);
 
     const required = this.reflector.getAllAndOverride<string[]>(PERMS, targets);
     if (required?.length) {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, Suspense, useEffect, useState } from 'react';
 import { cn, Loading } from '@/components/ui';
-import { post, setSession } from '@/lib/api';
+import { getSession, post, restorePlatformSession, setSession } from '@/lib/api';
 import { useSession } from '@/lib/hooks';
 import { NAV } from '@/lib/nav';
 
@@ -19,7 +19,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-    if (mounted && session?.scope !== 'tenant') router.replace('/login');
+    // Read storage directly: the hook's first client snapshot is null during hydration.
+    if (mounted && getSession()?.scope !== 'tenant') router.replace('/login');
   }, [mounted, session, router]);
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -99,6 +100,23 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
       <div className="min-w-0 flex-1 lg:pl-60">
+        {session.profile.impersonatedBy && (
+          <div className="no-print flex flex-wrap items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-sm font-medium text-white">
+            <span>
+              Platform support session — signed in as {session.profile.user.name} ({session.profile.user.email}) by {session.profile.impersonatedBy}. Everything you do is audited.
+            </span>
+            <button
+              className="rounded bg-white/20 px-2 py-0.5 hover:bg-white/30"
+              onClick={() => {
+                setSession(null);
+                if (restorePlatformSession()) router.replace('/platform');
+                else router.replace('/platform/login');
+              }}
+            >
+              Exit to platform
+            </button>
+          </div>
+        )}
         <header className="no-print sticky top-0 z-30 flex items-center gap-3 border-b bg-white px-4 py-2.5 lg:hidden">
           <button onClick={() => setMobileOpen(true)} aria-label="Menu">
             <Menu className="h-5 w-5" />

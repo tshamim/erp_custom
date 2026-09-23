@@ -150,6 +150,22 @@ async function main() {
   }
   await post('/variations', { projectId: p1.id, date: daysAgo(10), description: 'Additional drainage culvert at Ch. 3+150', amount: '4250000' });
 
+  console.log('• vendor management');
+  await post('/vendor-documents', { partyId: cementCo.id, docType: 'Trade Licence', docNo: 'TRAD/DSCC/2026/1189', issueDate: daysAgo(300), expiryDate: daysAgo(-20) });
+  await post('/vendor-documents', { partyId: cementCo.id, docType: 'VAT (BIN) Certificate', docNo: '000111222-0101', issueDate: daysAgo(700) });
+  await post('/vendor-documents', { partyId: steelCo.id, docType: 'Trade Licence', docNo: 'TRAD/DNCC/2025/5521', expiryDate: daysAgo(10) });
+  await post('/vendor-documents', { partyId: sub1.id, docType: 'Enlistment', docNo: 'ENL-2026-44', expiryDate: daysAgo(-300) });
+  for (const [party, q, d, p, s, remark] of [
+    [cementCo, 5, 4, 3, 4, 'Consistent strength test results; deliveries occasionally late in monsoon.'],
+    [steelCo, 5, 5, 3, 5, 'Mill test certificates always provided.'],
+    [sandCo, 3, 3, 5, 3, 'Cheapest source but FM varies between trips.'],
+    [sub1, 4, 4, 4, 4, 'Good workmanship on brickwork.'],
+  ]) {
+    await post('/vendor-evaluations', { partyId: party.id, date: daysAgo(12), quality: q, delivery: d, price: p, service: s, remarks: remark });
+  }
+  await post(`/vendors/${sandCo.id}/status`, { status: 'on_hold', reason: 'Sand FM below specification in last two lots — pending re-test.' });
+  await post('/parties', { type: 'vendor', name: 'Unverified Traders', vendorCategory: 'General' }).then((v) => post(`/vendors/${v.id}/status`, { status: 'pending', reason: 'New vendor — documents not yet submitted.' }));
+
   console.log('• HR');
   const emps = [];
   const staff = [

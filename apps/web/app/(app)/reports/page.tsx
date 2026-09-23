@@ -4,6 +4,7 @@ import { Printer } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { ReactNode, useState } from 'react';
 import { DataTable } from '@/components/resource';
+import { ExportMenu } from '@/components/file-tools';
 import { Button, Card, ErrorBox, Field, Input, Loading, PageHeader, Select, Stat, Tabs } from '@/components/ui';
 import { qs } from '@/lib/api';
 import { useGet, useLookups } from '@/lib/hooks';
@@ -102,12 +103,22 @@ function BalancedFlag({ ok }: { ok: boolean }) {
   return <span className={`text-xs font-medium ${ok ? 'text-emerald-700' : 'text-red-600'}`}>{ok ? '✔ Balanced' : '✘ Not balanced'}</span>;
 }
 
+const TB_COLUMNS = [
+  { key: 'code', label: 'Code' },
+  { key: 'name', label: 'Account' },
+  { key: 'debit', label: 'Debit', format: 'money' as const },
+  { key: 'credit', label: 'Credit', format: 'money' as const },
+];
+
 function TrialBalance({ asOf }: { asOf: string }) {
   const q = useReport(`/reports/trial-balance${qs({ asOf })}`);
   return (
     <Wrap q={q}>
       {() => (
-        <Card title={<>Trial balance as of {asOf} · <BalancedFlag ok={q.data!.balanced} /></>}>
+        <Card
+          title={<>Trial balance as of {asOf} · <BalancedFlag ok={q.data!.balanced} /></>}
+          actions={<ExportMenu title={`Trial balance ${asOf}`} columns={TB_COLUMNS} load={() => q.data!.rows as Row[]} />}
+        >
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase text-slate-500">
               <tr>
@@ -176,7 +187,17 @@ function ProfitLoss({ from, to, projectId }: { from: string; to: string; project
         const d = q.data!;
         return (
           <div className="grid gap-4 lg:grid-cols-3">
-            <Card title={`Profit & loss · ${from} to ${to}`} className="lg:col-span-2">
+            <Card
+              title={`Profit & loss · ${from} to ${to}`}
+              className="lg:col-span-2"
+              actions={
+                <ExportMenu
+                  title={`Profit and loss ${from} to ${to}`}
+                  columns={PL_COLUMNS}
+                  load={() => [...(d.income as Row[]).map((r) => ({ ...r, section: 'Income' })), ...(d.expense as Row[]).map((r) => ({ ...r, section: 'Expense' }))]}
+                />
+              }
+            >
               <Section title="Income" rows={d.income} total={d.totalIncome} />
               <Section title="Expenses" rows={d.expense} total={d.totalExpense} />
               <div className="flex justify-between border-t-2 pt-2 text-base font-semibold">
@@ -196,6 +217,13 @@ function ProfitLoss({ from, to, projectId }: { from: string; to: string; project
   );
 }
 
+const PL_COLUMNS = [
+  { key: 'section', label: 'Section' },
+  { key: 'code', label: 'Code' },
+  { key: 'name', label: 'Account' },
+  { key: 'amount', label: 'Amount', format: 'money' as const },
+];
+
 function BalanceSheet({ asOf }: { asOf: string }) {
   const q = useReport(`/reports/balance-sheet${qs({ asOf })}`);
   return (
@@ -204,7 +232,20 @@ function BalanceSheet({ asOf }: { asOf: string }) {
         const d = q.data!;
         return (
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card title={<>Assets · <BalancedFlag ok={d.balanced} /></>}>
+            <Card
+              title={<>Assets · <BalancedFlag ok={d.balanced} /></>}
+              actions={
+                <ExportMenu
+                  title={`Balance sheet ${asOf}`}
+                  columns={PL_COLUMNS}
+                  load={() => [
+                    ...(d.assets as Row[]).map((r) => ({ ...r, section: 'Assets' })),
+                    ...(d.liabilities as Row[]).map((r) => ({ ...r, section: 'Liabilities' })),
+                    ...(d.equity as Row[]).map((r) => ({ ...r, section: 'Equity' })),
+                  ]}
+                />
+              }
+            >
               <Section title="Assets" rows={d.assets} total={d.totalAssets} />
             </Card>
             <Card title="Liabilities & equity">
@@ -228,50 +269,53 @@ function Ledger({ accountId, from, to }: { accountId: string; from: string; to: 
     <Wrap q={q}>
       {() => (
         <div>
-          <div className="mb-2 flex justify-between text-sm">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
             <b>
               {q.data!.account.code} — {q.data!.account.name}
             </b>
-            <span>
+            <span className="flex items-center gap-3">
               Opening <b className="num">{money(q.data!.opening)}</b> · Closing <b className="num">{money(q.data!.closing)}</b>
+              <ExportMenu title={`Ledger ${q.data!.account.code} ${from} to ${to}`} columns={GL_COLUMNS} load={() => q.data!.lines as Row[]} />
             </span>
           </div>
-          <DataTable
-            rows={q.data!.lines}
-            rowHref={(r) => `/m/journals/${r.entryId}`}
-            columns={[
-              { key: 'date', label: 'Date', format: 'date' },
-              { key: 'no', label: 'Entry' },
-              { key: 'sourceType', label: 'Source', format: 'status' },
-              { key: 'narration', label: 'Narration', render: (r) => r.description || r.narration },
-              { key: 'partyName', label: 'Party' },
-              { key: 'projectName', label: 'Project' },
-              { key: 'debit', label: 'Debit', format: 'money' },
-              { key: 'credit', label: 'Credit', format: 'money' },
-              { key: 'balance', label: 'Balance', format: 'money' },
-            ]}
-          />
+          <DataTable rows={q.data!.lines} rowHref={(r) => `/m/journals/${r.entryId}`} columns={GL_COLUMNS} />
         </div>
       )}
     </Wrap>
   );
 }
 
+const GL_COLUMNS = [
+  { key: 'date', label: 'Date', format: 'date' as const },
+  { key: 'no', label: 'Entry' },
+  { key: 'sourceType', label: 'Source', format: 'status' as const },
+  { key: 'narration', label: 'Narration', render: (r: Row) => r.description || r.narration },
+  { key: 'partyName', label: 'Party' },
+  { key: 'projectName', label: 'Project' },
+  { key: 'debit', label: 'Debit', format: 'money' as const },
+  { key: 'credit', label: 'Credit', format: 'money' as const },
+  { key: 'balance', label: 'Balance', format: 'money' as const },
+];
+
 function Aging({ kind, asOf }: { kind: 'ar' | 'ap'; asOf: string }) {
   const q = useReport(`/reports/aging/${kind}${qs({ asOf })}`);
   return (
     <Wrap q={q}>
-      {() => (
-        <DataTable
-          rows={q.data!.parties}
-          empty="Nothing outstanding"
-          columns={[
-            { key: 'partyName', label: kind === 'ar' ? 'Customer' : 'Vendor' },
-            ...(q.data!.buckets as string[]).map((b) => ({ key: b, label: b === 'current' ? 'Not due' : `${b} days`, format: 'money' as const })),
-            { key: 'total', label: 'Total', format: 'money' },
-          ]}
-        />
-      )}
+      {() => {
+        const columns = [
+          { key: 'partyName', label: kind === 'ar' ? 'Customer' : 'Vendor' },
+          ...(q.data!.buckets as string[]).map((b) => ({ key: b, label: b === 'current' ? 'Not due' : `${b} days`, format: 'money' as const })),
+          { key: 'total', label: 'Total', format: 'money' as const },
+        ];
+        return (
+          <div>
+            <div className="mb-2 flex justify-end">
+              <ExportMenu title={`${kind === 'ar' ? 'Receivable' : 'Payable'} aging ${asOf}`} columns={columns} load={() => q.data!.parties as Row[]} />
+            </div>
+            <DataTable rows={q.data!.parties} empty="Nothing outstanding" columns={columns} />
+          </div>
+        );
+      }}
     </Wrap>
   );
 }
@@ -294,7 +338,10 @@ function Tax({ from, to }: { from: string; to: string }) {
               <Stat label="TDS on salary" value={money(d.tdsOnSalary)} />
               <Stat label="AIT deducted by clients" value={money(d.aitDeductedByClients)} />
             </div>
-            <Card title="Withholding register (for challan / return preparation)">
+            <Card
+              title="Withholding register (for challan / return preparation)"
+              actions={<ExportMenu title={`Withholding register ${from} to ${to}`} columns={WITHHOLDING_COLUMNS} load={() => d.withholding as Row[]} />}
+            >
               <DataTable
                 rows={d.withholding}
                 columns={[
@@ -317,28 +364,42 @@ function Tax({ from, to }: { from: string; to: string }) {
   );
 }
 
+const WITHHOLDING_COLUMNS = [
+  { key: 'date', label: 'Date', format: 'date' as const },
+  { key: 'no', label: 'Voucher' },
+  { key: 'direction', label: 'Type' },
+  { key: 'partyName', label: 'Party' },
+  { key: 'partyTin', label: 'TIN' },
+  { key: 'partyBin', label: 'BIN' },
+  { key: 'amount', label: 'Gross', format: 'money' as const },
+  { key: 'tdsAmount', label: 'TDS', format: 'money' as const },
+  { key: 'vdsAmount', label: 'VDS', format: 'money' as const },
+];
+
+const STOCK_VALUATION_COLUMNS = [
+  { key: 'itemCode', label: 'Code' },
+  { key: 'itemName', label: 'Item' },
+  { key: 'category', label: 'Category' },
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'quantity', label: 'Qty', format: 'qty' as const },
+  { key: 'uom', label: 'Unit' },
+  { key: 'avgCost', label: 'Avg cost', format: 'money' as const },
+  { key: 'value', label: 'Value', format: 'money' as const },
+];
+
 function StockValuation() {
   const q = useReport('/reports/stock-valuation');
   return (
     <Wrap q={q}>
       {() => (
         <div>
-          <p className="mb-2 text-right text-sm">
-            Total value <b className="num">{money(q.data!.totalValue)}</b>
-          </p>
-          <DataTable
-            rows={q.data!.rows}
-            columns={[
-              { key: 'itemCode', label: 'Code' },
-              { key: 'itemName', label: 'Item' },
-              { key: 'category', label: 'Category' },
-              { key: 'warehouse', label: 'Warehouse' },
-              { key: 'quantity', label: 'Qty', format: 'qty' },
-              { key: 'uom', label: 'Unit' },
-              { key: 'avgCost', label: 'Avg cost', format: 'money' },
-              { key: 'value', label: 'Value', format: 'money' },
-            ]}
-          />
+          <div className="mb-2 flex items-center justify-end gap-3 text-sm">
+            <span>
+              Total value <b className="num">{money(q.data!.totalValue)}</b>
+            </span>
+            <ExportMenu title="Stock valuation" columns={STOCK_VALUATION_COLUMNS} load={() => q.data!.rows as Row[]} />
+          </div>
+          <DataTable rows={q.data!.rows} columns={STOCK_VALUATION_COLUMNS} />
         </div>
       )}
     </Wrap>

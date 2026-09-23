@@ -1,7 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Plus, Printer, Search, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { IMPORT_TEMPLATES, type ImportResource } from '@erp/shared';
+import { Attachments, ExportMenu, ImportDialog } from './file-tools';
+import { cellText } from '@/lib/export';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
@@ -153,6 +156,20 @@ export function ResourceList({ def, initialParams = {} }: { def: ResourceDef; in
 
   const createHref = def.createHref ?? (def.form ? `${basePath(def)}/new` : null);
   const linkable = !def.noLink && (def.editable || def.detail);
+  const [importOpen, setImportOpen] = useState(false);
+  const importTpl = def.importResource ? IMPORT_TEMPLATES[def.importResource as ImportResource] : null;
+
+  /** Every page matching the current filters (capped at 5000 rows). */
+  const loadAll = async () => {
+    const all: Row[] = [];
+    for (let p = 1; p <= 25; p++) {
+      const res = await get<{ data: Row[]; total: number } | Row[]>(def.endpoint + qs({ ...params, page: p, pageSize: 200 }));
+      if (Array.isArray(res)) return res;
+      all.push(...res.data);
+      if (all.length >= res.total || !res.data.length) break;
+    }
+    return all;
+  };
 
   return (
     <div>
@@ -160,13 +177,22 @@ export function ResourceList({ def, initialParams = {} }: { def: ResourceDef; in
         title={def.title}
         subtitle={q.data ? `${total} record${total === 1 ? '' : 's'}` : undefined}
         actions={
-          createHref && can(`${def.perm}.create`) ? (
-            <LinkButton href={createHref}>
-              <Plus className="h-4 w-4" /> New {def.singular.toLowerCase()}
-            </LinkButton>
-          ) : null
+          <>
+            <ExportMenu title={def.title} columns={def.columns} load={loadAll} />
+            {importTpl && can(importTpl.perm) && (
+              <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4" /> Import CSV
+              </Button>
+            )}
+            {createHref && can(`${def.perm}.create`) ? (
+              <LinkButton href={createHref}>
+                <Plus className="h-4 w-4" /> New {def.singular.toLowerCase()}
+              </LinkButton>
+            ) : null}
+          </>
         }
       />
+      {importTpl && <ImportDialog resource={def.importResource as ImportResource} open={importOpen} onClose={() => setImportOpen(false)} />}
       {(def.searchable || def.filters?.length) && (
         <div className="mb-3 flex flex-wrap items-end gap-2">
           {def.searchable && (
@@ -462,6 +488,11 @@ export function ResourceForm({ def, id, initial }: { def: ResourceDef; id?: stri
       </Card>
       {def.form!.lines && <LinesEditor def={def.form!.lines} lines={values.lines as Row[]} setLines={(lines) => setValues((s) => ({ ...s, lines }))} />}
       {Object.keys(errors).some((k) => k.startsWith('lines')) && <p className="mt-2 text-xs text-red-600">Check the lines: {Object.entries(errors).filter(([k]) => k.startsWith('lines')).map(([k, v]) => `${k.replace('lines.', 'line ')}: ${v}`).join('; ')}</p>}
+      {isEdit && def.attachEntity !== false && (
+        <div className="mt-4">
+          <Attachments entity={(def.attachEntity || def.key).replace(/-/g, '_')} entityId={id!} />
+        </div>
+      )}
       <div className="mt-4 space-y-3">
         <ErrorBox error={error} />
         <div className="flex justify-end gap-2">
@@ -497,9 +528,15 @@ export function DocumentView({ def, row }: { def: ResourceDef; row: Row }) {
             <Link href={basePath(def)} className="self-center text-sm text-slate-500 hover:text-slate-700">
               ← All {def.title.toLowerCase()}
             </Link>
-            <Button variant="secondary" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" /> Print
-            </Button>
+            <ExportMenu
+              title={`${def.singular} ${row.no ?? row.code ?? ''}`.trim()}
+              columns={d.lines?.columns.filter((c) => !c.render) ?? d.fields}
+              load={() => (d.lines ? lines : [row])}
+              pdf={() => [
+                { fields: d.fields.filter((f) => !f.render).map((f) => ({ label: f.label, value: cellText(f, row, false) || '—' })) },
+                ...(d.lines ? [{ table: { columns: d.lines.columns.filter((c) => !c.render), rows: lines } }] : []),
+              ]}
+            />
             {d.actions?.map((a) => <ActionButton key={a.label} action={a} row={row} />)}
           </>
         }
@@ -522,6 +559,11 @@ export function DocumentView({ def, row }: { def: ResourceDef; row: Row }) {
         </div>
       )}
       {d.extra && <div className="no-print mt-4">{d.extra(row)}</div>}
+      {def.attachEntity !== false && row.id && (
+        <div className="mt-4">
+          <Attachments entity={(def.attachEntity || def.key).replace(/-/g, '_')} entityId={row.id} />
+        </div>
+      )}
     </div>
   );
 }

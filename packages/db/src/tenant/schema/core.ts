@@ -71,6 +71,8 @@ export const auditLogs = pgTable(
     before: jsonb('before'),
     after: jsonb('after'),
     ip: varchar('ip', { length: 64 }),
+    /** Platform admin email when the action was performed via "login as tenant". */
+    impersonatedBy: varchar('impersonated_by', { length: 200 }),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('audit_entity_idx').on(t.entity, t.entityId), index('audit_at_idx').on(t.at)],

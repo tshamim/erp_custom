@@ -2,6 +2,7 @@ import {
   BarChart3,
   Boxes,
   Building2,
+  Handshake,
   HardHat,
   LayoutDashboard,
   Landmark,
@@ -64,6 +65,14 @@ export const NAV: NavSection[] = [
       { label: 'Purchase Requisitions', href: '/m/purchase-requisitions', perm: 'procurement.requisition.read' },
       { label: 'Purchase Orders', href: '/m/purchase-orders', perm: 'procurement.order.read' },
       { label: 'Goods Receipts', href: '/m/goods-receipts', perm: 'procurement.receipt.read' },
+    ],
+  },
+  {
+    label: 'Vendors',
+    icon: Handshake,
+    items: [
+      { label: 'Vendors & Subcontractors', href: '/vendors', perm: 'vendor.vendor.read' },
+      { label: 'Compliance', href: '/vendors/compliance', perm: 'vendor.vendor.read' },
     ],
   },
   {

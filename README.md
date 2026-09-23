@@ -39,9 +39,24 @@ BuildERP is an ERP for construction companies in Bangladesh. It covers projects,
 | Finance | Chart of accounts, manual journals with drafts and reversal, customers/vendors/subcontractors, AR invoices, AP bills (from GRN), receipts/payments with TDS/VDS withholding and allocation, bank accounts + reconciliation, fiscal period locks |
 | Inventory & procurement | Items, warehouses, issue/transfer/adjustment/opening with GL, purchase requisitions → quotations → PO (approval) → GRN → vendor bill |
 | Reports | Trial balance, P&L (whole company or per project), balance sheet, general ledger, AR/AP aging, VAT & withholding summary, stock valuation, dashboard |
-| Admin | Users, custom roles with per-permission toggles, branches, audit log (before/after), company and payroll settings |
+| Vendor management | Vendor/subcontractor register with approval states (approved, pending, on hold, blacklisted — only approved ones can receive POs or work orders), categories, banking details, compliance documents with expiry tracking, scorecards (quality/delivery/price/service), and a 360° page: spend, billed, paid, withholding, outstanding, retention, on-time delivery %, average lead time, price history and vendor price comparison per item |
+| Files | Attachments on any record (drag & drop, preview, download), stored in MinIO under a per-company prefix |
+| Import / export | CSV import with a downloadable template, dry-run validation and all-or-nothing apply (items, parties, employees, departments, designations, warehouses, equipment, BOQ, opening stock); CSV and PDF export plus print layouts on every list, document and report |
+| Admin | Users, custom roles with per-permission toggles, branches, audit log (before/after, incl. platform-support actions), company and payroll settings |
 
 > Tax rates, slabs and leave entitlements are seeded as editable starting points. Check them against the current Finance Act and NBR SROs before go-live.
+
+## Platform owner
+
+The platform console (`/platform`) is where you run the service itself:
+
+* **360° visibility.** One dashboard aggregates every company — users and 30-day active users, employees, projects and contract value, invoiced amounts, database size, stored files and last activity — with live figures read from each company's own database. Each company also has its own page with usage, its user list, its audit trail and the provisioning log.
+* **Module licensing.** Modules (Construction, HR, Payroll, Finance, Inventory, Procurement, Vendor Management) are switched on or off per company. Disabling one strips its permissions from every user of that company within seconds, which hides its menus and blocks its API routes; core administration always stays available.
+* **Plans and seats.** Plan name, maximum active users and an expiry date per company. Creating or reactivating a user beyond the seat limit is refused.
+* **Login as tenant.** With a written reason, the owner gets a one-hour token for a chosen company user (or its first admin). The tenant UI shows a permanent amber banner during the session and an "Exit to platform" button restores the owner's own session. Every action performed is written to that company's audit trail tagged with the platform admin's email, and the session start is recorded in the platform audit log.
+* **Lifecycle.** Create and provision companies (with the modules to license), suspend and reactivate them, and run pending migrations across all of them.
+
+Platform actions never bypass tenant isolation: the owner still acts through a tenant user and its permissions, and the tenant's audit trail records who it really was.
 
 ## Getting started
 
@@ -73,16 +88,21 @@ Ports are remapped (Postgres 5440, Redis 6390, MinIO 9010/9011, Mailpit 8035) so
 | Change a schema | edit `packages/db/src/{control,tenant}/schema`, then `pnpm db:generate` |
 | Apply to all tenants | `pnpm db:migrate:tenants` |
 | Unit tests (posting, stock, payroll, RA bill, leave math) | `pnpm --filter @erp/api test` |
-| End-to-end flow (provisions a fresh tenant) | `pnpm --filter @erp/api test:e2e` |
+| End-to-end (business flow + platform/vendor/files/import) | `pnpm --filter @erp/api test:e2e` |
 | Typecheck everything | `pnpm typecheck` |
+| Remove test companies left by e2e runs | `node scripts/drop-tenants.mjs e2e_ e2p_ --yes` |
 
 Most master-data and document screens are generated from one config registry: `apps/web/lib/resources.tsx`. To add a screen, add a registry entry. Screens with their own workflow (projects, RA bills, attendance, payroll, payments, reports, admin) are hand-written pages under `apps/web/app/(app)`.
 
 ## Known gaps / next steps
 
 * Provisioning runs in-process. The next step is to move it to a BullMQ worker (Redis is already in compose).
-* The attachments table exists, but no upload UI is wired to MinIO yet.
 * Price variance between GRN and bill is not split out. The bill clears GRNI at the bill price.
 * Only a single currency (BDT) is supported, although the schema has `currency`/`fxRate` columns.
 * The access token is kept in localStorage. The refresh token is an httpOnly cookie.
-* There are no PDF exports yet. Documents print via browser print styles.
+* PDF export is client-side (jsPDF) and uses the default font, so Bangla text in a PDF falls back to Latin glyphs — CSV and print handle it correctly.
+* Attachments are streamed through the API rather than via presigned URLs, which keeps permissions simple but puts large downloads on the API process.
+
+### A Drizzle gotcha worth knowing
+
+In a select with no joins, Drizzle renders bare column names, so a correlated sub-select written with `${table.column}` placeholders can silently resolve `party_id = id` inside the sub-select's own table and return zero. Correlated sub-selects in this codebase are therefore written with explicit table prefixes (see `vendors.service.ts`), and `platform.e2e-spec.ts` asserts on those aggregates.

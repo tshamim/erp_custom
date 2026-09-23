@@ -6,7 +6,10 @@ export interface Profile {
   user: { id: string; name: string; email: string };
   roles?: string[];
   permissions?: string[];
+  modules?: string[];
   tenant?: { id: string; slug: string; name: string };
+  /** Platform admin email when this is a "login as tenant" session. */
+  impersonatedBy?: string | null;
 }
 
 export interface Session {
@@ -19,6 +22,29 @@ export interface Session {
 const KEY = 'erp.session';
 let memory: Session | null = null;
 const listeners = new Set<() => void>();
+
+const PLATFORM_KEY = 'erp.platformSession';
+
+/** While impersonating, the platform session is parked here so the owner can return to it. */
+export function parkPlatformSession(s: Session) {
+  try {
+    localStorage.setItem(PLATFORM_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function restorePlatformSession(): boolean {
+  try {
+    const raw = localStorage.getItem(PLATFORM_KEY);
+    localStorage.removeItem(PLATFORM_KEY);
+    if (!raw) return false;
+    setSession(JSON.parse(raw) as Session);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function getSession(): Session | null {
   if (memory) return memory;
@@ -120,6 +146,33 @@ export const post = <T = unknown>(path: string, json?: unknown) => api<T>(path, 
 export const put = <T = unknown>(path: string, json: unknown) => api<T>(path, { method: 'PUT', json });
 export const patch = <T = unknown>(path: string, json: unknown) => api<T>(path, { method: 'PATCH', json });
 export const del = <T = unknown>(path: string) => api<T>(path, { method: 'DELETE' });
+
+/** Multipart upload of a single file (field "file"). */
+export function upload<T = unknown>(path: string, file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  return api<T>(path, { method: 'POST', body });
+}
+
+/** Authenticated binary download → opens in a new tab (inline) or saves the file. */
+export async function fetchFile(path: string, filename: string, inline = false, retry = true): Promise<void> {
+  const s = getSession();
+  const headers: Record<string, string> = {};
+  if (s?.accessToken) headers.authorization = `Bearer ${s.accessToken}`;
+  if (s?.tenant) headers['x-tenant'] = s.tenant;
+  const res = await fetch(API_URL + path, { headers, credentials: 'include' });
+  if (res.status === 401 && retry && (await refresh())) return fetchFile(path, filename, inline, false);
+  if (!res.ok) throw new ApiError(res.status, `Download failed (${res.status})`, null);
+  const url = URL.createObjectURL(await res.blob());
+  if (inline) window.open(url, '_blank', 'noopener');
+  else {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 export function qs(params: Record<string, string | number | boolean | undefined | null>) {
   const p = new URLSearchParams();

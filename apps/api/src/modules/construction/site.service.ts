@@ -10,6 +10,7 @@ import { searchClause } from '../../common/pagination';
 import { InvoicesService, BillsService } from '../finance/documents.service';
 import { ProcurementService } from '../procurement/procurement.service';
 import { PostingService } from '../../ledger/posting.service';
+import { assertVendorApproved } from '../vendors/vendors.service';
 
 export interface RaInput {
   lines: { rate: string; previousQty: string; currentQty: string; quantity: string }[];
@@ -199,6 +200,7 @@ export class SiteService {
     const id = await this.ctx.db.transaction(async (tx) => {
       const [party] = await tx.select().from(t.parties).where(eq(t.parties.id, dto.partyId));
       if (party?.type !== 'subcontractor') throw new BadRequestException('Party must be a subcontractor');
+      await assertVendorApproved(tx, dto.partyId);
       const lines = dto.lines.map((l, i) => ({ ...l, lineNo: i + 1, amount: D(l.quantity).times(l.rate).toDecimalPlaces(2) }));
       const no = await this.numbering.next(tx, 'work_order', dto.date);
       const [wo] = await tx

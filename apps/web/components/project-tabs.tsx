@@ -1,6 +1,7 @@
 'use client';
 
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Upload } from 'lucide-react';
+import { ExportMenu, ImportDialog } from './file-tools';
 import { FormEvent, useState } from 'react';
 import { DataTable, useOptions } from './resource';
 import { Badge, Button, Card, ErrorBox, Field, Input, LinkButton, Loading, Modal, Select, Stat, Textarea } from './ui';
@@ -105,6 +106,7 @@ export function BoqTab({ id }: { id: string }) {
   const est = useGet<Row[]>(`/projects/${id}/boq/materials`);
   const [editing, setEditing] = useState<Row | null>(null);
   const remove = useAction((itemId: string) => del(`/projects/${id}/boq/${itemId}`), 'BOQ item deleted');
+  const [importOpen, setImportOpen] = useState(false);
   if (q.isLoading) return <Loading />;
   const rows = q.data ?? [];
   const total = rows.filter((r) => !r.isSection).reduce((a, r) => a + Number(r.amount), 0);
@@ -113,11 +115,19 @@ export function BoqTab({ id }: { id: string }) {
       <Card
         title={`Bill of Quantities · ${money(total)}`}
         actions={
-          can('construction.boq.create') && (
-            <Button size="sm" onClick={() => setEditing({})}>
-              <Plus className="h-3.5 w-3.5" /> Add item
-            </Button>
-          )
+          <>
+            <ExportMenu title="Bill of Quantities" columns={BOQ_COLUMNS} load={() => rows} />
+            {can('construction.boq.create') && (
+              <>
+                <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
+                  <Upload className="h-3.5 w-3.5" /> Import
+                </Button>
+                <Button size="sm" onClick={() => setEditing({})}>
+                  <Plus className="h-3.5 w-3.5" /> Add item
+                </Button>
+              </>
+            )}
+          </>
         }
       >
         <div className="overflow-x-auto">
@@ -197,9 +207,20 @@ export function BoqTab({ id }: { id: string }) {
         />
       </Card>
       {editing && <BoqModal projectId={id} item={editing} onClose={() => setEditing(null)} />}
+      <ImportDialog resource="boq" projectId={id} open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   );
 }
+
+const BOQ_COLUMNS = [
+  { key: 'code', label: 'Item' },
+  { key: 'description', label: 'Description' },
+  { key: 'uom', label: 'Unit' },
+  { key: 'quantity', label: 'Qty', format: 'qty' as const },
+  { key: 'rate', label: 'Rate', format: 'money' as const },
+  { key: 'amount', label: 'Amount', format: 'money' as const },
+  { key: 'executedQty', label: 'Executed', format: 'qty' as const },
+];
 
 function BoqModal({ projectId, item, onClose }: { projectId: string; item: Row; onClose: () => void }) {
   const full = useGet<Row>(item.id ? `/projects/${projectId}/boq/${item.id}` : null);

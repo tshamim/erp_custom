@@ -10,6 +10,7 @@ import { StockService } from '../../ledger/stock.service';
 import { D, Decimal, m2, pct, q4, sum } from '../../common/money';
 import { searchClause } from '../../common/pagination';
 import { itemAccounts } from '../inventory/inventory.service';
+import { assertVendorApproved } from '../vendors/vendors.service';
 
 @Injectable()
 export class ProcurementService {
@@ -224,6 +225,7 @@ export class ProcurementService {
 
   async createOrder(dto: PurchaseOrderDto) {
     const id = await this.ctx.db.transaction(async (tx) => {
+      await assertVendorApproved(tx, dto.partyId);
       const vat = await tx.select({ id: t.taxCodes.id, rate: t.taxCodes.rate }).from(t.taxCodes).where(eq(t.taxCodes.kind, 'vat'));
       const rate = new Map(vat.map((v) => [v.id, v.rate]));
       const lines = dto.lines.map((l, i) => {
@@ -281,6 +283,7 @@ export class ProcurementService {
       closed: ['partially_received', 'received', 'approved'],
     };
     if (!allowed[to].includes(po.status)) throw new BadRequestException(`Cannot mark a ${po.status} order as ${to}`);
+    if (to === 'approved') await assertVendorApproved(this.ctx.db, po.partyId);
     if (to === 'cancelled' && po.lines.some((l) => D(l.receivedQty).greaterThan(0))) {
       throw new BadRequestException('Goods already received; close the order instead');
     }

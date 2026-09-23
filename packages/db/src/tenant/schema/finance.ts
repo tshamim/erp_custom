@@ -79,9 +79,52 @@ export const parties = pgTable(
     defaultTdsCodeId: uuid('default_tds_code_id').references(() => taxCodes.id),
     defaultVdsCodeId: uuid('default_vds_code_id').references(() => taxCodes.id),
     isActive: boolean('is_active').notNull().default(true),
+    // ---- vendor management ----
+    /** approved | pending | on_hold | blacklisted — POs are blocked unless approved */
+    vendorStatus: varchar('vendor_status', { length: 20 }).notNull().default('approved'),
+    vendorCategory: varchar('vendor_category', { length: 100 }), // cement, steel, sand, electrical…
+    bankName: varchar('bank_name', { length: 100 }),
+    bankBranch: varchar('bank_branch', { length: 100 }),
+    bankAccountNo: varchar('bank_account_no', { length: 50 }),
+    routingNo: varchar('routing_no', { length: 20 }),
+    blacklistReason: text('blacklist_reason'),
     ...timestamps(),
   },
   (t) => [index('parties_type_idx').on(t.type)],
+);
+
+/** Periodic vendor/subcontractor scorecard (1–5 per criterion). */
+export const vendorEvaluations = pgTable(
+  'vendor_evaluations',
+  {
+    id: id(),
+    partyId: uuid('party_id').notNull().references(() => parties.id, { onDelete: 'cascade' }),
+    date: date('date').notNull(),
+    quality: integer('quality').notNull(),
+    delivery: integer('delivery').notNull(),
+    price: integer('price').notNull(),
+    service: integer('service').notNull(),
+    remarks: text('remarks'),
+    evaluatedBy: uuid('evaluated_by'),
+    ...timestamps(),
+  },
+  (t) => [index('vendor_eval_party_idx').on(t.partyId)],
+);
+
+/** Compliance documents with expiry tracking (trade license, TIN, BIN, IRC, enlistment…). */
+export const vendorDocuments = pgTable(
+  'vendor_documents',
+  {
+    id: id(),
+    partyId: uuid('party_id').notNull().references(() => parties.id, { onDelete: 'cascade' }),
+    docType: varchar('doc_type', { length: 50 }).notNull(),
+    docNo: varchar('doc_no', { length: 100 }),
+    issueDate: date('issue_date'),
+    expiryDate: date('expiry_date'),
+    remarks: text('remarks'),
+    ...timestamps(),
+  },
+  (t) => [index('vendor_doc_party_idx').on(t.partyId)],
 );
 
 export const journalEntries = pgTable(

@@ -44,10 +44,12 @@ export class PartiesService {
       searchClause(q, [t.parties.code, t.parties.name, t.parties.phone, t.parties.binNo]),
       q.type ? eq(t.parties.type, q.type) : undefined,
     );
-    const receivable = sql<string>`coalesce((select sum(${t.invoices.total} - ${t.invoices.paidAmount}) from ${t.invoices}
-      where ${t.invoices.partyId} = ${t.parties.id} and ${t.invoices.status} in ('posted','partially_paid')), 0)`;
-    const payable = sql<string>`coalesce((select sum(${t.bills.total} - ${t.bills.paidAmount}) from ${t.bills}
-      where ${t.bills.partyId} = ${t.parties.id} and ${t.bills.status} in ('posted','partially_paid')), 0)`;
+    // Explicit table prefixes: Drizzle renders bare column names in a join-less select,
+    // which would make `party_id = id` resolve inside the sub-select's own table.
+    const receivable = sql<string>`coalesce((select sum(i.total - i.paid_amount) from invoices i
+      where i.party_id = parties.id and i.status in ('posted','partially_paid')), 0)`;
+    const payable = sql<string>`coalesce((select sum(b.total - b.paid_amount) from bills b
+      where b.party_id = parties.id and b.status in ('posted','partially_paid')), 0)`;
     const data = await db
       .select({
         id: t.parties.id,

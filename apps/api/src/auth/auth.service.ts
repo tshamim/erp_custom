@@ -1,6 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { TenantModulesService } from '../tenancy/tenant-modules.service';
 import { verify } from '@node-rs/argon2';
 import { controlSchema, tenantSchema as t } from '@erp/db';
 import type { LoginDto } from '@erp/shared';
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly ctx: TenantContext,
     private readonly audit: AuditService,
     private readonly perms: PermissionCache,
+    private readonly modules: TenantModulesService,
     @Inject(CONTROL_DB) private readonly control: ControlDb,
   ) {}
 
@@ -48,7 +50,7 @@ export class AuthService {
     return { ...tokens, profile: await this.profile(user.id) };
   }
 
-  async profile(userId: string) {
+  async profile(userId: string, impersonatedBy?: string) {
     const db = this.ctx.db;
     const tenant = this.ctx.tenant;
     const [user] = await db
@@ -66,8 +68,39 @@ export class AuthService {
       user,
       roles: roleRows.map((r) => r.name),
       permissions: [...granted.keys].sort(),
+      modules: [...(await this.modules.enabled(tenant.id))],
       tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name },
+      impersonatedBy: impersonatedBy ?? null,
     };
+  }
+
+  /**
+   * Platform owner "login as tenant": short-lived access token (no refresh cookie) for an
+   * active tenant user — the chosen one or the first active Admin. Caller must have bound the tenant in CLS.
+   */
+  async impersonate(admin: { id: string; email: string }, userId?: string) {
+    const db = this.ctx.db;
+    const tenant = this.ctx.tenant;
+    let target: { id: string; name: string } | undefined;
+    if (userId) {
+      [target] = await db.select({ id: t.users.id, name: t.users.name }).from(t.users).where(and(eq(t.users.id, userId), eq(t.users.isActive, true)));
+    } else {
+      [target] = await db
+        .select({ id: t.users.id, name: t.users.name })
+        .from(t.users)
+        .innerJoin(t.userRoles, eq(t.userRoles.userId, t.users.id))
+        .innerJoin(t.roles, eq(t.roles.id, t.userRoles.roleId))
+        .where(and(eq(t.roles.name, 'Admin'), eq(t.users.isActive, true)))
+        .limit(1);
+    }
+    if (!target) throw new UnauthorizedException('No active user to sign in as');
+    this.ctx.setUser(target.id, admin.email);
+    await this.audit.log('impersonate', 'user', target.id, null, { platformAdmin: admin.email });
+    const accessToken = await this.jwt.signAsync(
+      { sub: target.id, scope: 'tenant', tid: tenant.id, name: target.name, imp: admin } satisfies JwtPayload,
+      { secret: config.jwtSecret, expiresIn: config.impersonationTtlSeconds },
+    );
+    return { accessToken, profile: await this.profile(target.id, admin.email) };
   }
 
   async refresh(token: string | undefined) {

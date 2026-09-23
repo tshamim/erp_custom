@@ -1,13 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { tenantSchema as t, TenantDb } from '@erp/db';
+import { TenantModulesService } from '../tenancy/tenant-modules.service';
 
 const TTL_MS = 60_000;
 
-/** Caches each user's effective permission set for 60s. Call `invalidate` after role changes. */
+/**
+ * Caches each user's effective permission set for 60s — role grants intersected with the
+ * tenant's licensed modules. Call `invalidate` after role or module changes.
+ */
 @Injectable()
 export class PermissionCache {
   private readonly cache = new Map<string, { keys: Set<string>; active: boolean; at: number }>();
+
+  constructor(private readonly modules: TenantModulesService) {}
 
   async forUser(tenantId: string, userId: string, db: TenantDb) {
     const k = `${tenantId}:${userId}`;
@@ -20,7 +26,8 @@ export class PermissionCache {
       .from(t.userRoles)
       .innerJoin(t.rolePermissions, eq(t.rolePermissions.roleId, t.userRoles.roleId))
       .where(eq(t.userRoles.userId, userId));
-    const entry = { keys: new Set(rows.map((r) => r.key)), active: !!user?.isActive, at: Date.now() };
+    const keys = await this.modules.filterPermissions(tenantId, rows.map((r) => r.key));
+    const entry = { keys, active: !!user?.isActive, at: Date.now() };
     this.cache.set(k, entry);
     return entry;
   }

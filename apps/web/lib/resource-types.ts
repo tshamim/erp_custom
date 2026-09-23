@@ -107,6 +107,10 @@ export interface ResourceDef {
   noLink?: boolean;
   /** Route prefix for this resource's pages (default /m/<key>). */
   basePath?: string;
+  /** CSV import template key (see IMPORT_TEMPLATES) — shows an Import button on the list. */
+  importResource?: string;
+  /** Entity name for attachments on the record page; false disables attachments. */
+  attachEntity?: string | false;
 }
 
 export const basePath = (def: ResourceDef) => def.basePath ?? `/m/${def.key}`;

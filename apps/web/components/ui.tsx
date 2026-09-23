@@ -144,6 +144,17 @@ export function Badge({ value, className }: { value?: string | null; className?:
   );
 }
 
+/** Validity of a dated document (vendor licence, certificate…). */
+export function DocState({ state }: { state: string }) {
+  const style =
+    state === 'expired'
+      ? 'bg-red-50 text-red-700 ring-red-600/20'
+      : state === 'expiring'
+        ? 'bg-amber-50 text-amber-800 ring-amber-600/20'
+        : 'bg-emerald-50 text-emerald-700 ring-emerald-600/20';
+  return <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', style)}>{state === 'expired' ? 'Expired' : state === 'expiring' ? 'Expiring soon' : 'Valid'}</span>;
+}
+
 export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cn('h-5 w-5 animate-spin text-slate-400', className)} />;
 }

@@ -4,7 +4,7 @@ import type { TenantDb } from '@erp/db';
 import type { ResolvedTenant } from './tenant-connection.service';
 
 /** CLS keys (kept untyped on ClsService — typing the store with TenantDb blows up TS inference). */
-export const CLS = { tenant: 'tenant', tenantDb: 'tenantDb', userId: 'userId', ip: 'ip' } as const;
+export const CLS = { tenant: 'tenant', tenantDb: 'tenantDb', userId: 'userId', ip: 'ip', impersonator: 'impersonator' } as const;
 
 /**
  * Request-scoped tenant access backed by AsyncLocalStorage (nestjs-cls),
@@ -38,7 +38,19 @@ export class TenantContext {
     return this.cls.get(CLS.ip) as string | undefined;
   }
 
-  setUser(userId: string) {
+  /** Platform admin email when the current request runs under "login as tenant". */
+  get impersonator(): string | undefined {
+    return this.cls.get(CLS.impersonator) as string | undefined;
+  }
+
+  setUser(userId: string, impersonator?: string) {
     this.cls.set(CLS.userId, userId);
+    if (impersonator) this.cls.set(CLS.impersonator, impersonator);
+  }
+
+  /** Bind a tenant outside the HTTP middleware (platform operations on a specific tenant). */
+  bindTenant(tenant: ResolvedTenant, db: TenantDb) {
+    this.cls.set(CLS.tenant, tenant);
+    this.cls.set(CLS.tenantDb, db);
   }
 }

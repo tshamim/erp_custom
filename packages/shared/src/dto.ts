@@ -51,11 +51,44 @@ export const createTenantSchema = z.object({
   contactEmail: z.string().email().optional(),
   contactPhone: z.string().optional(),
   plan: z.string().default('standard'),
+  /** Modules to enable; omitted = all modules. */
+  modules: z.array(z.string()).optional(),
   adminName: z.string().min(2),
   adminEmail: z.string().email(),
   adminPassword: z.string().min(8),
 });
 export type CreateTenantDto = z.infer<typeof createTenantSchema>;
+
+export const tenantModulesSchema = z.object({ modules: z.record(z.boolean()) });
+export const subscriptionSchema = z.object({
+  plan: z.string().min(1).max(50),
+  maxUsers: z.coerce.number().int().min(1).max(100000),
+  endsAt: isoDate.nullish(),
+});
+export const impersonateSchema = z.object({ userId: uuid.optional(), reason: z.string().min(3).max(500) });
+
+// ---------- vendor management ----------
+export const vendorEvaluationSchema = z.object({
+  partyId: uuid,
+  date: isoDate,
+  quality: z.coerce.number().int().min(1).max(5),
+  delivery: z.coerce.number().int().min(1).max(5),
+  price: z.coerce.number().int().min(1).max(5),
+  service: z.coerce.number().int().min(1).max(5),
+  remarks: optStr,
+});
+export const vendorDocumentSchema = z.object({
+  partyId: uuid,
+  docType: z.string().min(2).max(50),
+  docNo: optStr,
+  issueDate: isoDate.nullish(),
+  expiryDate: isoDate.nullish(),
+  remarks: optStr,
+});
+export const vendorStatusSchema = z.object({
+  status: z.enum(['approved', 'pending', 'on_hold', 'blacklisted']),
+  reason: optStr,
+});
 
 // ---------- core ----------
 export const userSchema = z.object({
@@ -228,6 +261,11 @@ export const partySchema = z.object({
   defaultTdsCodeId: optUuid,
   defaultVdsCodeId: optUuid,
   isActive: z.boolean().default(true),
+  vendorCategory: optStr,
+  bankName: optStr,
+  bankBranch: optStr,
+  bankAccountNo: optStr,
+  routingNo: optStr,
 });
 export type PartyDto = z.infer<typeof partySchema>;
 

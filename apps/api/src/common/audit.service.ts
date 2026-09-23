@@ -32,6 +32,7 @@ export class AuditService {
         before: clean(before),
         after: clean(after),
         ip: this.ctx.ip ?? null,
+        impersonatedBy: this.ctx.impersonator ?? null,
       });
     } catch (e) {
       // Audit must never break the business operation outside a transaction.

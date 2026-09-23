@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { hash } from '@node-rs/argon2';
-import { tenantSchema as t } from '@erp/db';
+import { controlSchema as c, tenantSchema as t } from '@erp/db';
+import { CONTROL_DB, ControlDb } from '../../control/control.module';
 import type { ListQuery, UserDto } from '@erp/shared';
 import { TenantContext } from '../../tenancy/tenant-context';
 import { AuditService } from '../../common/audit.service';
@@ -26,6 +27,7 @@ export class UsersService {
     private readonly ctx: TenantContext,
     private readonly audit: AuditService,
     private readonly perms: PermissionCache,
+    @Inject(CONTROL_DB) private readonly control: ControlDb,
   ) {}
 
   async list(q: ListQuery) {
@@ -61,8 +63,22 @@ export class UsersService {
     return { ...user, roleIds: roles.map((r) => r.roleId) };
   }
 
+  /** Active users are capped by the tenant's subscription (set by the platform owner). */
+  private async assertSeatAvailable() {
+    const [sub] = await this.control
+      .select({ maxUsers: c.subscriptions.maxUsers })
+      .from(c.subscriptions)
+      .where(eq(c.subscriptions.tenantId, this.ctx.tenant.id))
+      .orderBy(desc(c.subscriptions.startsAt))
+      .limit(1);
+    if (!sub) return;
+    const [{ n }] = await this.ctx.db.select({ n: sql<number>`count(*)::int` }).from(t.users).where(eq(t.users.isActive, true));
+    if (n >= sub.maxUsers) throw new ForbiddenException(`User limit reached (${sub.maxUsers} active users on your plan)`);
+  }
+
   async create(dto: UserDto) {
     if (!dto.password) throw new BadRequestException('Password is required');
+    if (dto.isActive !== false) await this.assertSeatAvailable();
     const id = await this.ctx.db.transaction(async (tx) => {
       const [u] = await tx
         .insert(t.users)
@@ -86,6 +102,7 @@ export class UsersService {
   async update(id: string, dto: Partial<UserDto>) {
     const before = await this.get(id);
     if (id === this.ctx.userId && dto.isActive === false) throw new BadRequestException('You cannot deactivate yourself');
+    if (dto.isActive === true && !before.isActive) await this.assertSeatAvailable();
     await this.ctx.db.transaction(async (tx) => {
       const set: Partial<typeof t.users.$inferInsert> = {};
       if (dto.email) set.email = dto.email.toLowerCase();

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, boolean, pgEnum, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, boolean, pgEnum, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
 export const tenantStatus = pgEnum('tenant_status', ['provisioning', 'active', 'suspended', 'failed']);
 
@@ -59,6 +59,32 @@ export const provisioningJobs = pgTable('provisioning_jobs', {
   error: text('error'),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
+});
+
+/** Feature modules licensed to a tenant. Missing row = module disabled (core is always on). */
+export const tenantModules = pgTable(
+  'tenant_modules',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    module: varchar('module', { length: 30 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.module] })],
+);
+
+/** Everything a platform admin does (tenant changes, impersonation). */
+export const platformAuditLogs = pgTable('platform_audit_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  adminId: uuid('admin_id'),
+  adminEmail: varchar('admin_email', { length: 200 }),
+  action: varchar('action', { length: 40 }).notNull(),
+  tenantId: uuid('tenant_id'),
+  details: jsonb('details'),
+  ip: varchar('ip', { length: 64 }),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const platformAdmins = pgTable('platform_admins', {

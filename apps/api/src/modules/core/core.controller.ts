@@ -101,6 +101,7 @@ export class SystemController {
         after: t.auditLogs.after,
         at: t.auditLogs.at,
         ip: t.auditLogs.ip,
+        impersonatedBy: t.auditLogs.impersonatedBy,
         userName: t.users.name,
       })
       .from(t.auditLogs)

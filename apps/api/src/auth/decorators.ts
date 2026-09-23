@@ -17,6 +17,8 @@ export interface JwtPayload {
   scope: 'tenant' | 'platform';
   tid?: string;
   name?: string;
+  /** Set when a platform admin is acting inside a tenant ("login as tenant"). */
+  imp?: { id: string; email: string };
 }
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): JwtPayload => {

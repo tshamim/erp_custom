@@ -5,6 +5,7 @@ import { branchSchema } from '@erp/shared';
 import { UsersController, RolesController, SystemController } from './core.controller';
 import { UsersService, RolesService } from './users.service';
 import { crudController } from '../../common/crud.factory';
+import { AttachmentsController } from './attachments.controller';
 
 const BranchesController = crudController({
   path: 'branches',
@@ -17,7 +18,7 @@ const BranchesController = crudController({
 });
 
 @Module({
-  controllers: [UsersController, RolesController, SystemController, BranchesController],
+  controllers: [UsersController, RolesController, SystemController, BranchesController, AttachmentsController],
   providers: [UsersService, RolesService],
 })
 export class CoreModule {}

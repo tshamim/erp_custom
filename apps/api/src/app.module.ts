@@ -20,6 +20,8 @@ import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ConstructionModule } from './modules/construction/construction.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { VendorsModule } from './modules/vendors/vendors.module';
+import { ImportModule } from './modules/core/import.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     ConstructionModule,
     PayrollModule,
     ReportsModule,
+    VendorsModule,
+    ImportModule,
   ],
   controllers: [HealthController, AuthController, PlatformAuthController, PlatformController],
   providers: [AuthService, PlatformService, { provide: APP_GUARD, useClass: AuthGuard }],
