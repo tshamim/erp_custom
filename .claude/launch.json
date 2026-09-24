@@ -1,17 +1,40 @@
 {
+  "//": "The stack normally runs in Docker (docker compose -p custom_erp up -d). These entries attach to it; nothing is started, so ports 3100/4100 never collide.",
   "version": "0.0.1",
   "configurations": [
     {
+      "//": "Default: the web app served by the `web` container.",
+      "name": "app",
+      "url": "http://localhost:3100",
+      "port": 3100
+    },
+    {
+      "//": "Alias so a request for `web` attaches instead of launching a second copy.",
+      "name": "web",
+      "url": "http://localhost:3100",
+      "port": 3100
+    },
+    {
+      "//": "The API served by the `api` container.",
       "name": "api",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@erp/api", "dev"],
+      "url": "http://localhost:4100",
       "port": 4100
     },
     {
-      "name": "web",
+      "//": "Hot reload on the host. Stop the container first: docker compose -p custom_erp stop web. Port is fixed: the API only allows CORS from WEB_ORIGIN (http://localhost:3100).",
+      "name": "web-dev",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@erp/web", "dev"],
-      "port": 3100
+      "port": 3100,
+      "autoPort": false
+    },
+    {
+      "//": "Hot reload on the host. Stop the container first: docker compose -p custom_erp stop api. Port is fixed: the web bundle bakes NEXT_PUBLIC_API_URL=http://localhost:4100 at build time.",
+      "name": "api-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@erp/api", "dev"],
+      "port": 4100,
+      "autoPort": false
     }
   ]
 }

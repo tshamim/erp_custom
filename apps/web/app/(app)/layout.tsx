@@ -109,8 +109,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               className="rounded bg-white/20 px-2 py-0.5 hover:bg-white/30"
               onClick={() => {
                 setSession(null);
-                if (restorePlatformSession()) router.replace('/platform');
-                else router.replace('/platform/login');
+                // Full page load for the same reason as starting the session: this layout's own
+                // "tenant only" guard would otherwise redirect to the company login first.
+                window.location.assign(restorePlatformSession() ? '/platform' : '/platform/login');
               }}
             >
               Exit to platform

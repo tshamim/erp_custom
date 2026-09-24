@@ -218,7 +218,9 @@ function ImpersonateModal({ tenantId, target, onClose }: { tenantId: string; tar
       const platform = getSession();
       if (platform) parkPlatformSession(platform);
       setSession({ scope: 'tenant', tenant: (res.tenant as Row).slug, accessToken: res.accessToken as string, profile: res.profile as never });
-      router.replace('/');
+      // Full page load: a client-side push would race this screen's own "platform only" guard,
+      // which sees the new tenant session and bounces to the platform login.
+      window.location.assign('/');
     },
   );
   return (
