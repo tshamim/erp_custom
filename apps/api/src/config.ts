@@ -26,6 +26,7 @@ export const config = {
     accessKey: process.env.MINIO_ACCESS_KEY ?? 'erp',
     secretKey: process.env.MINIO_SECRET_KEY ?? 'erp_dev_password',
     bucket: process.env.MINIO_BUCKET ?? 'erp-attachments',
+    region: process.env.MINIO_REGION ?? 'us-east-1',
   },
   maxUploadBytes: Number(process.env.MAX_UPLOAD_MB ?? 20) * 1024 * 1024,
   /** Hostname labels that are never treated as a tenant subdomain. */
