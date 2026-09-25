@@ -6,16 +6,14 @@ services:
       POSTGRES_USER: ${PG_ADMIN_USER:-erp}
       POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?set PG_ADMIN_PASSWORD in .env}
       POSTGRES_DB: erp_control
-    ports: ["5440:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U erp -d erp_control"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_ADMIN_USER:-erp} -d erp_control"]
       interval: 5s
       retries: 10
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports: ["6390:6379"]
   minio:
     image: minio/minio:latest
     restart: unless-stopped
@@ -23,17 +21,11 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-erp}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env}
-    ports: ["9010:9000", "9011:9001"]
     volumes: [miniodata:/data]
     healthcheck:
       test: ["CMD-SHELL", "mc ready local || exit 1"]
       interval: 10s
       retries: 10
-  mailpit:
-    image: axllent/mailpit:latest
-    restart: unless-stopped
-    ports: ["8035:8025", "1035:1025"]
-
   # One-shot: control-plane schema + pending migrations for every tenant database.
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile }
@@ -66,7 +58,6 @@ services:
     environment:
       <<: *backend_env
       API_PORT: "4100"
-    ports: ["4100:4100"]
 
   web:
     build:
@@ -79,7 +70,6 @@ services:
     restart: unless-stopped
     depends_on:
       api: { condition: service_healthy }
-    ports: ["3100:3100"]
 
 volumes:
   pgdata:

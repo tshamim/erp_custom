@@ -58,6 +58,9 @@ The platform console (`/platform`) is where you run the service itself:
 
 Platform actions never bypass tenant isolation: the owner still acts through a tenant user and its permissions, and the tenant's audit trail records who it really was.
 
+For putting this on a server for real use — sizing, secrets, HTTPS, backups, updates and a
+pre-handover security checklist — see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
 ## Getting started
 
 Prerequisites: Docker. (Node 22+ and pnpm 9 as well, if you want hot reload.)

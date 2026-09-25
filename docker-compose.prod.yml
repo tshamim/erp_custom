@@ -1,0 +1,48 @@
+# Production overlay. Use together with the base file and never with the dev override:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -p erp up -d --build
+#
+# Only Caddy is reachable from the internet; it terminates TLS and proxies to web and api
+# over the internal network. Postgres, Redis and MinIO publish no host ports at all.
+services:
+  postgres:
+    # Tune to the server: shared_buffers ~25% of RAM, effective_cache_size ~50%.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - max_connections=200
+      - -c
+      - log_min_duration_statement=2000
+
+  api:
+    environment:
+      NODE_ENV: production
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  web:
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      web: { condition: service_started }
+      api: { condition: service_healthy }
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env, e.g. erp.example.com}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env, e.g. api.example.com}
+    logging: *logging
+
+volumes:
+  caddydata:
+  caddyconfig:

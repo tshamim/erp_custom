@@ -1,0 +1,21 @@
+# Local development. Compose loads this automatically beside docker-compose.yml,
+# so `docker compose -p custom_erp up -d` behaves exactly as before.
+# Production does NOT load it: use `-f docker-compose.yml -f docker-compose.prod.yml`,
+# which keeps the database, cache and object storage off the public network.
+services:
+  postgres:
+    ports: ["5440:5432"]
+  redis:
+    ports: ["6390:6379"]
+  minio:
+    ports: ["9010:9000", "9011:9001"]
+  api:
+    ports: ["4100:4100"]
+  web:
+    ports: ["3100:3100"]
+
+  # Catches outgoing mail locally so nothing is ever sent by accident. Not for production.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports: ["8035:8025", "1035:1025"]

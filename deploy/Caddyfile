@@ -1,0 +1,28 @@
+# Caddy obtains and renews Let's Encrypt certificates automatically.
+# Both names must already point to this server's public IP.
+
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy web:3100
+}
+
+{$API_DOMAIN} {
+	encode gzip
+	# Uploads: allow the 20 MB the API accepts (MAX_UPLOAD_MB).
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy api:4100
+}
+
+# Optional: a subdomain per company (acme.erp.example.com) instead of typing the Company ID
+# at login. A wildcard certificate needs a DNS-challenge build of Caddy plus API credentials
+# for your DNS provider, so it is off by default.
+#
+# *.{$APP_DOMAIN} {
+# 	tls {
+# 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+# 	}
+# 	encode gzip
+# 	reverse_proxy web:3100
+# }
