@@ -6,7 +6,7 @@ import type { ControlDb, TenantDb } from './client';
 import { createTenantDb } from './client';
 import { tenants, tenantDatabases, provisioningJobs } from './control/schema';
 import { encryptSecret, decryptSecret, randomPassword } from './crypto';
-import { seedTenant, syncPermissions, SeedAdmin } from './seed/seed-tenant';
+import { seedTenant, syncPermissions, syncCoreAccounts, SeedAdmin } from './seed/seed-tenant';
 
 export const TENANT_MIGRATIONS = path.join(__dirname, '..', 'migrations', 'tenant');
 export const CONTROL_MIGRATIONS = path.join(__dirname, '..', 'migrations', 'control');
@@ -172,6 +172,7 @@ export async function migrateAllTenants(control: ControlDb): Promise<MigrateResu
     try {
       await migrate(db, { migrationsFolder: TENANT_MIGRATIONS });
       await syncPermissions(db);
+      await syncCoreAccounts(db);
       const version = await latestMigrationTag(db);
       await control
         .update(tenantDatabases)

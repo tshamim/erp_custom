@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ColumnDef, FieldDef, LinesDef, ResourceDef, Row } from './resource-types';
 import { today } from './format';
+import { EXTRA_RESOURCES } from './resources-extra';
 import { GoodsReceiptPanel, IssueFromRequisitionPanel, SubcontractBillPanel } from '@/components/doc-extras';
 
 const statusCol = (key = 'status'): ColumnDef => ({ key, label: 'Status', format: 'status' });
@@ -923,5 +924,6 @@ export const RESOURCES: Record<string, ResourceDef> = {
       ],
     },
   },
+  ...EXTRA_RESOURCES,
 };
 

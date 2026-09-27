@@ -29,6 +29,11 @@ export function dateTime(v: unknown): string {
 
 export const today = () => new Date().toISOString().slice(0, 10);
 export const monthStart = () => `${today().slice(0, 7)}-01`;
+/** Bangladesh fiscal year runs July–June. */
+export const fiscalYearStart = () => {
+  const d = new Date();
+  return `${d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1}-07-01`;
+};
 
 export function titleCase(s: string) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

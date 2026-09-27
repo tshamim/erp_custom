@@ -4,6 +4,7 @@ import {
   accountSchema,
   AccountDto,
   bankAccountSchema,
+  bankReconcileCloseSchema,
   billSchema,
   BillDto,
   invoiceSchema,
@@ -297,10 +298,22 @@ export class BankController {
     return this.svc.create(dto);
   }
 
+  @Get(':id/summary')
+  @Perm('finance.payment.read')
+  summary(@Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.summary(id);
+  }
+
   @Get(':id/reconciliation')
   @Perm('finance.payment.read')
   reconciliation(@Param('id', ParseUUIDPipe) id: string) {
     return this.svc.reconciliation(id);
+  }
+
+  @Post(':id/reconciliation/close')
+  @Perm('finance.payment.update')
+  closeReconciliation(@Param('id', ParseUUIDPipe) id: string, @ZBody(bankReconcileCloseSchema) dto: z.infer<typeof bankReconcileCloseSchema>) {
+    return this.svc.closeReconciliation(id, dto);
   }
 
   @Post(':id/statement-lines')

@@ -26,6 +26,7 @@ export const CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: '1180', name: 'Advance Income Tax (AIT)', type: 'asset', subtype: 'tax', parent: '1100' },
   { code: '1190', name: 'Work in Progress', type: 'asset', subtype: 'wip', parent: '1100' },
   { code: '1195', name: 'Employee Advances', type: 'asset', parent: '1100' },
+  { code: '1198', name: 'Candidate Advances (visa cases)', type: 'asset', parent: '1100' },
   { code: '1200', name: 'Fixed Assets', type: 'asset', group: true, parent: '1000' },
   { code: '1210', name: 'Plant & Machinery', type: 'asset', subtype: 'fixed_asset', parent: '1200' },
   { code: '1220', name: 'Vehicles', type: 'asset', subtype: 'fixed_asset', parent: '1200' },
@@ -45,14 +46,18 @@ export const CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: '2180', name: 'Mobilization Advance from Clients', type: 'liability', parent: '2100' },
   { code: '2190', name: 'Accrued Expenses', type: 'liability', parent: '2100' },
   { code: '2200', name: 'Long-term Loans', type: 'liability', parent: '2000' },
+  { code: '2210', name: 'Investor Capital', type: 'liability', parent: '2000' },
+  { code: '2220', name: 'Investor Profit Payable', type: 'liability', parent: '2000' },
 
   { code: '3000', name: 'Equity', type: 'equity', group: true },
   { code: '3100', name: 'Share Capital', type: 'equity', parent: '3000' },
   { code: '3200', name: 'Retained Earnings', type: 'equity', parent: '3000' },
+  { code: '3300', name: 'Opening Balance Equity', type: 'equity', parent: '3000' },
 
   { code: '4000', name: 'Income', type: 'income', group: true },
   { code: '4100', name: 'Contract Revenue', type: 'income', parent: '4000' },
   { code: '4200', name: 'Other Income', type: 'income', parent: '4000' },
+  { code: '4300', name: 'Visa Service Income', type: 'income', parent: '4000' },
 
   { code: '5000', name: 'Direct Project Costs', type: 'expense', group: true },
   { code: '5100', name: 'Material Cost', type: 'expense', parent: '5000' },
@@ -65,6 +70,7 @@ export const CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: '6100', name: 'Salaries & Allowances', type: 'expense', parent: '6000' },
   { code: '6110', name: 'Employer PF Contribution', type: 'expense', parent: '6000' },
   { code: '6120', name: 'Festival Bonus', type: 'expense', parent: '6000' },
+  { code: '6130', name: 'Investor Profit Share', type: 'expense', parent: '6000' },
   { code: '6200', name: 'Office Rent', type: 'expense', parent: '6000' },
   { code: '6300', name: 'Utilities', type: 'expense', parent: '6000' },
   { code: '6400', name: 'Travel & Conveyance', type: 'expense', parent: '6000' },
@@ -103,6 +109,12 @@ export const ACCOUNT_MAPPINGS: Record<string, string> = {
   pf_expense: '6110',
   bonus_expense: '6120',
   stock_adjustment: '6700',
+  opening_balance: '3300',
+  investor_capital: '2210',
+  investor_payable: '2220',
+  investor_profit_share: '6130',
+  eb3_income: '4300',
+  eb3_advance: '1198',
 };
 
 export const TAX_CODES = [

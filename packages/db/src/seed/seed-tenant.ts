@@ -28,6 +28,41 @@ export async function syncPermissions(db: TenantDb): Promise<void> {
   }
 }
 
+/**
+ * Adds chart-of-accounts entries and posting rules introduced after a tenant was created,
+ * so an existing company gains the accounts a new module needs. Idempotent.
+ */
+export async function syncCoreAccounts(db: TenantDb): Promise<void> {
+  const existing = await db.select({ id: t.accounts.id, code: t.accounts.code }).from(t.accounts);
+  if (!existing.length) return; // not seeded yet; seedTenant will do it
+  const byCode = new Map(existing.map((a) => [a.code, a.id]));
+
+  for (const a of CHART_OF_ACCOUNTS) {
+    if (byCode.has(a.code)) continue;
+    const [row] = await db
+      .insert(t.accounts)
+      .values({
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        subtype: a.subtype ?? null,
+        isGroup: !!a.group,
+        parentId: a.parent ? (byCode.get(a.parent) ?? null) : null,
+      })
+      .returning({ id: t.accounts.id });
+    byCode.set(a.code, row.id);
+  }
+
+  const mapped = new Set((await db.select({ key: t.accountMappings.key }).from(t.accountMappings)).map((m) => m.key));
+  const missing = Object.entries(ACCOUNT_MAPPINGS).filter(([key, code]) => !mapped.has(key) && byCode.has(code));
+  if (missing.length) {
+    await db
+      .insert(t.accountMappings)
+      .values(missing.map(([key, code]) => ({ key, accountId: byCode.get(code)! })))
+      .onConflictDoNothing();
+  }
+}
+
 /** Bangladesh fiscal year containing `today` (Jul 1 – Jun 30). */
 export function currentFiscalYear(today = new Date()) {
   const y = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;

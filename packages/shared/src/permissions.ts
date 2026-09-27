@@ -61,6 +61,24 @@ export const PERMISSIONS = [
   'core.attachment.create',
   'core.attachment.delete',
   'core.import.create',
+
+  ...crud('investor', 'investor'),
+  ...crud('investor', 'agreement'),
+  ...crud('investor', 'transaction'),
+  'investor.transaction.post',
+  'investor.report.read',
+
+  ...crud('quotation', 'quotation'),
+  'quotation.quotation.approve',
+
+  ...crud('document', 'document'),
+
+  ...crud('eb3', 'employer'),
+  ...crud('eb3', 'joborder'),
+  ...crud('eb3', 'candidate'),
+  ...crud('eb3', 'case'),
+  'eb3.case.advance',
+  ...crud('eb3', 'payment'),
 ] as const;
 
 /**
@@ -75,6 +93,10 @@ export const MODULES = {
   inventory: { label: 'Inventory', prefixes: ['inventory'] },
   procurement: { label: 'Procurement', prefixes: ['procurement'] },
   vendor: { label: 'Vendor Management', prefixes: ['vendor'] },
+  investor: { label: 'Investors & Profit Sharing', prefixes: ['investor'] },
+  quotation: { label: 'Quotations & Tenders', prefixes: ['quotation'] },
+  document: { label: 'Company Documents & Media', prefixes: ['document'] },
+  eb3: { label: 'EB-3 Visa Processing', prefixes: ['eb3'] },
 } as const;
 export type ModuleKey = keyof typeof MODULES;
 export const MODULE_KEYS = Object.keys(MODULES) as ModuleKey[];
@@ -115,7 +137,16 @@ export const DEFAULT_ROLES: Record<string, { description: string; permissions: P
   'Project Manager': {
     description: 'Construction projects',
     permissions: PERMISSIONS.filter(
-      (p) => p.startsWith('construction.') || p === 'inventory.item.read' || p.startsWith('procurement.requisition') || p.startsWith('core.attachment'),
+      (p) =>
+        p.startsWith('construction.') ||
+        p === 'inventory.item.read' ||
+        p.startsWith('procurement.requisition') ||
+        p.startsWith('core.attachment') ||
+        p.startsWith('quotation.'),
     ),
+  },
+  'Visa Case Officer': {
+    description: 'EB-3 candidates, cases and documents',
+    permissions: PERMISSIONS.filter((p) => p.startsWith('eb3.') || p.startsWith('core.attachment') || p === 'document.document.read'),
   },
 };

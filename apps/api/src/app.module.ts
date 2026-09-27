@@ -22,6 +22,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { VendorsModule } from './modules/vendors/vendors.module';
 import { ImportModule } from './modules/core/import.module';
+import { InvestorsModule } from './modules/investors/investors.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ImportModule } from './modules/core/import.module';
     ReportsModule,
     VendorsModule,
     ImportModule,
+    InvestorsModule,
   ],
   controllers: [HealthController, AuthController, PlatformAuthController, PlatformController],
   providers: [AuthService, PlatformService, { provide: APP_GUARD, useClass: AuthGuard }],

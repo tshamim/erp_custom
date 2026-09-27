@@ -90,6 +90,269 @@ export const vendorStatusSchema = z.object({
   reason: optStr,
 });
 
+// ---------- investors ----------
+export const investorSchema = z.object({
+  code: z.string().max(30).optional(),
+  name: z.string().min(2).max(200),
+  type: z.enum(['individual', 'company']).default('individual'),
+  contactPerson: optStr,
+  phone: optStr,
+  email: z.string().email().nullish().or(z.literal('')),
+  address: optStr,
+  nid: optStr,
+  tin: optStr,
+  passportNo: optStr,
+  bankName: optStr,
+  bankAccountNo: optStr,
+  status: z.enum(['active', 'exited']).default('active'),
+  notes: optStr,
+});
+export type InvestorDto = z.infer<typeof investorSchema>;
+
+export const investmentAgreementSchema = z.object({
+  investorId: uuid,
+  projectId: uuid,
+  date: isoDate,
+  committedAmount: positiveDecimal,
+  profitSharePercent: nonNegDecimal.refine((v) => Number(v) <= 100, 'Share cannot exceed 100%'),
+  sharesLoss: z.boolean().default(true),
+  startDate: isoDate.nullish(),
+  endDate: isoDate.nullish(),
+  terms: optStr,
+  status: z.enum(['draft', 'active', 'closed', 'cancelled']).default('active'),
+});
+export type InvestmentAgreementDto = z.infer<typeof investmentAgreementSchema>;
+
+/** Money in from, or out to, an investor. Profit shares are booked through their own endpoint. */
+export const investorTransactionSchema = z.object({
+  investorId: uuid,
+  agreementId: optUuid,
+  projectId: optUuid,
+  date: isoDate,
+  type: z.enum(['contribution', 'payout']),
+  amount: positiveDecimal,
+  cashAccountId: uuid,
+  method: z.enum(['cash', 'cheque', 'bank_transfer', 'mobile_banking']).default('bank_transfer'),
+  reference: optStr,
+  notes: optStr,
+});
+export type InvestorTransactionDto = z.infer<typeof investorTransactionSchema>;
+
+/** Books an investor's share of a project's profit (or loss) for a period. */
+export const profitAllocationSchema = z.object({
+  agreementId: uuid,
+  date: isoDate,
+  periodFrom: isoDate,
+  periodTo: isoDate,
+  /** Leave blank to use the share computed from the project's profit for that period. */
+  amount: decimal.nullish(),
+  notes: optStr,
+});
+export type ProfitAllocationDto = z.infer<typeof profitAllocationSchema>;
+
+// ---------- quotations ----------
+export const quotationSchema = z.object({
+  date: isoDate,
+  validUntil: isoDate.nullish(),
+  clientId: optUuid,
+  title: z.string().min(2).max(200),
+  location: optStr,
+  projectCode: optStr,
+  discount: nonNegDecimal.default('0'),
+  vatPercent: nonNegDecimal.default('0'),
+  retentionPercent: nonNegDecimal.default('0'),
+  notes: optStr,
+  terms: optStr,
+  lines: z
+    .array(
+      z.object({
+        lineNo: z.string().min(1).max(30),
+        description: z.string().min(1),
+        uom: optStr,
+        quantity: nonNegDecimal.default('0'),
+        rate: nonNegDecimal.default('0'),
+        isSection: z.boolean().default(false),
+      }),
+    )
+    .min(1),
+});
+export type QuotationDto = z.infer<typeof quotationSchema>;
+
+/** Turns a won quotation into a live project with its BOQ. */
+export const quotationWinSchema = z.object({
+  projectCode: z.string().min(1).max(30),
+  startDate: isoDate.nullish(),
+  endDate: isoDate.nullish(),
+  mobilizationAdvance: nonNegDecimal.default('0'),
+  advanceRecoveryPercent: nonNegDecimal.default('0'),
+  projectManagerId: optUuid,
+  createSiteStore: z.boolean().default(true),
+});
+export type QuotationWinDto = z.infer<typeof quotationWinSchema>;
+
+// ---------- company documents ----------
+export const DOCUMENT_CATEGORIES = [
+  'trade_licence',
+  'incorporation',
+  'tin_bin',
+  'tax_return',
+  'insurance',
+  'bank',
+  'licence_enlistment',
+  'contract',
+  'certificate',
+  'site_photo',
+  'other',
+] as const;
+
+export const companyDocumentSchema = z.object({
+  category: z.enum(DOCUMENT_CATEGORIES),
+  title: z.string().min(2).max(200),
+  docNo: optStr,
+  issuedBy: optStr,
+  issueDate: isoDate.nullish(),
+  expiryDate: isoDate.nullish(),
+  projectId: optUuid,
+  isConfidential: z.boolean().default(false),
+  remarks: optStr,
+});
+export type CompanyDocumentDto = z.infer<typeof companyDocumentSchema>;
+
+// ---------- bank ----------
+export const bankReconcileCloseSchema = z.object({
+  statementDate: isoDate,
+  statementBalance: decimal,
+  notes: optStr,
+});
+
+// ---------- EB-3 visa processing ----------
+export const eb3EmployerSchema = z.object({
+  code: z.string().min(1).max(30),
+  name: z.string().min(2).max(200),
+  contactPerson: optStr,
+  email: z.string().email().nullish().or(z.literal('')),
+  phone: optStr,
+  address: optStr,
+  city: optStr,
+  state: optStr,
+  industry: optStr,
+  fein: optStr,
+  attorneyName: optStr,
+  attorneyEmail: z.string().email().nullish().or(z.literal('')),
+  status: z.enum(['active', 'inactive']).default('active'),
+  notes: optStr,
+});
+export type Eb3EmployerDto = z.infer<typeof eb3EmployerSchema>;
+
+export const eb3JobOrderSchema = z.object({
+  employerId: uuid,
+  title: z.string().min(2).max(200),
+  socCode: optStr,
+  positions: z.coerce.number().int().min(1).default(1),
+  offeredWage: nonNegDecimal.nullish(),
+  wageUnit: z.enum(['hour', 'week', 'month', 'year']).default('hour'),
+  worksiteCity: optStr,
+  worksiteState: optStr,
+  requirements: optStr,
+  openedDate: isoDate.nullish(),
+  status: z.enum(['open', 'filled', 'on_hold', 'closed']).default('open'),
+  notes: optStr,
+});
+export type Eb3JobOrderDto = z.infer<typeof eb3JobOrderSchema>;
+
+export const eb3CandidateSchema = z.object({
+  code: z.string().max(30).optional(),
+  fullName: z.string().min(2).max(200),
+  fatherName: optStr,
+  dateOfBirth: isoDate.nullish(),
+  gender: z.enum(['male', 'female', 'other']).nullish(),
+  maritalStatus: optStr,
+  dependents: z.coerce.number().int().min(0).default(0),
+  nid: optStr,
+  passportNo: optStr,
+  passportIssueDate: isoDate.nullish(),
+  passportExpiry: isoDate.nullish(),
+  phone: optStr,
+  email: z.string().email().nullish().or(z.literal('')),
+  address: optStr,
+  district: optStr,
+  education: optStr,
+  experienceYears: z.coerce.number().int().min(0).nullish(),
+  skill: optStr,
+  englishLevel: z.enum(['none', 'basic', 'conversational', 'fluent']).nullish(),
+  status: z.enum(['lead', 'screening', 'selected', 'case_open', 'visa_issued', 'departed', 'rejected', 'withdrawn']).default('lead'),
+  source: optStr,
+  assignedTo: optUuid,
+  notes: optStr,
+});
+export type Eb3CandidateDto = z.infer<typeof eb3CandidateSchema>;
+
+export const EB3_STAGE_LIST = [
+  'prevailing_wage',
+  'recruitment',
+  'perm_filed',
+  'perm_approved',
+  'i140_filed',
+  'i140_approved',
+  'nvc_processing',
+  'ds260_submitted',
+  'interview_scheduled',
+  'visa_approved',
+  'visa_denied',
+  'departed',
+] as const;
+export type Eb3Stage = (typeof EB3_STAGE_LIST)[number];
+
+export const eb3CaseSchema = z.object({
+  candidateId: uuid,
+  employerId: uuid,
+  jobOrderId: optUuid,
+  openedDate: isoDate,
+  priorityDate: isoDate.nullish(),
+  attorneyName: optStr,
+  agreedFee: nonNegDecimal.default('0'),
+  notes: optStr,
+});
+export type Eb3CaseDto = z.infer<typeof eb3CaseSchema>;
+
+export const eb3StageSchema = z.object({
+  stage: z.enum(EB3_STAGE_LIST),
+  date: isoDate,
+  notes: optStr,
+  permCaseNo: optStr,
+  i140Receipt: optStr,
+  nvcCaseNo: optStr,
+  interviewDate: isoDate.nullish(),
+  consulate: optStr,
+  visaNumber: optStr,
+  departureDate: isoDate.nullish(),
+});
+export type Eb3StageDto = z.infer<typeof eb3StageSchema>;
+
+export const eb3CaseDocumentSchema = z.object({
+  caseId: uuid,
+  docType: z.string().min(2).max(100),
+  required: z.boolean().default(true),
+  receivedDate: isoDate.nullish(),
+  expiryDate: isoDate.nullish(),
+  remarks: optStr,
+});
+export type Eb3CaseDocumentDto = z.infer<typeof eb3CaseDocumentSchema>;
+
+export const eb3PaymentSchema = z.object({
+  caseId: optUuid,
+  candidateId: uuid,
+  date: isoDate,
+  type: z.enum(['service_fee', 'government_fee', 'attorney_fee', 'medical', 'travel', 'refund']),
+  direction: z.enum(['in', 'out']).default('in'),
+  amount: positiveDecimal,
+  cashAccountId: uuid,
+  method: z.enum(['cash', 'cheque', 'bank_transfer', 'mobile_banking']).default('cash'),
+  reference: optStr,
+  notes: optStr,
+});
+export type Eb3PaymentDto = z.infer<typeof eb3PaymentSchema>;
+
 // ---------- core ----------
 export const userSchema = z.object({
   email: z.string().email(),
@@ -331,6 +594,9 @@ export const bankAccountSchema = z.object({
   branchName: optStr,
   accountNo: z.string().min(3),
   routingNo: optStr,
+  /** Balance already in the account when it is entered; posted against opening balance equity. */
+  openingBalance: decimal.default('0'),
+  openingDate: isoDate.nullish(),
 });
 
 export const taxCodeSchema = z.object({

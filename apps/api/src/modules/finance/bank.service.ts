@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, notInArray, sql } from 'drizzle-orm';
 import { tenantSchema as t } from '@erp/db';
 import { TenantContext } from '../../tenancy/tenant-context';
 import { AuditService } from '../../common/audit.service';
+import { PostingService } from '../../ledger/posting.service';
 import { D, m2 } from '../../common/money';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class BankService {
   constructor(
     private readonly ctx: TenantContext,
     private readonly audit: AuditService,
+    private readonly posting: PostingService,
   ) {}
 
   list() {
@@ -27,6 +29,10 @@ export class BankService {
         accountNo: t.bankAccounts.accountNo,
         routingNo: t.bankAccounts.routingNo,
         isActive: t.bankAccounts.isActive,
+        openingBalance: t.bankAccounts.openingBalance,
+        openingDate: t.bankAccounts.openingDate,
+        lastReconciledDate: t.bankAccounts.lastReconciledDate,
+        lastReconciledBalance: t.bankAccounts.lastReconciledBalance,
         balance: bal,
       })
       .from(t.bankAccounts)
@@ -34,8 +40,22 @@ export class BankService {
       .orderBy(asc(t.accounts.code));
   }
 
-  /** Creates a GL bank account under the "Bank Accounts" group plus the bank details row. */
-  async create(dto: { accountCode: string; bankName: string; branchName?: string | null; accountNo: string; routingNo?: string | null }) {
+  /**
+   * Creates a GL bank account under the "Bank Accounts" group plus the bank details row.
+   * An opening balance is posted against opening balance equity, so a company joining
+   * mid-year starts from the balance the bank actually shows.
+   */
+  async create(dto: {
+    accountCode: string;
+    bankName: string;
+    branchName?: string | null;
+    accountNo: string;
+    routingNo?: string | null;
+    openingBalance?: string | null;
+    openingDate?: string | null;
+  }) {
+    const opening = D(dto.openingBalance);
+    const openingDate = dto.openingDate ?? new Date().toISOString().slice(0, 10);
     const id = await this.ctx.db.transaction(async (tx) => {
       const [group] = await tx.select().from(t.accounts).where(eq(t.accounts.code, '1120'));
       const [acct] = await tx
@@ -50,8 +70,30 @@ export class BankService {
         .returning({ id: t.accounts.id });
       const [bank] = await tx
         .insert(t.bankAccounts)
-        .values({ accountId: acct.id, bankName: dto.bankName, branchName: dto.branchName, accountNo: dto.accountNo, routingNo: dto.routingNo })
+        .values({
+          accountId: acct.id,
+          bankName: dto.bankName,
+          branchName: dto.branchName,
+          accountNo: dto.accountNo,
+          routingNo: dto.routingNo,
+          openingBalance: m2(opening),
+          openingDate: opening.isZero() ? null : openingDate,
+        })
         .returning({ id: t.bankAccounts.id });
+
+      if (!opening.isZero()) {
+        await this.posting.post(tx, {
+          date: openingDate,
+          sourceType: 'opening',
+          sourceId: bank.id,
+          reference: dto.accountNo,
+          narration: `Opening balance — ${dto.bankName} ${dto.accountNo}`,
+          lines: [
+            { account: { id: acct.id }, debit: opening },
+            { account: 'opening_balance', credit: opening },
+          ],
+        });
+      }
       return bank.id;
     });
     await this.audit.log('create', 'bank_account', id, null, dto);
@@ -62,6 +104,97 @@ export class BankService {
     const [b] = await this.ctx.db.select().from(t.bankAccounts).where(eq(t.bankAccounts.id, id));
     if (!b) throw new NotFoundException();
     return b;
+  }
+
+  /**
+   * Where the account stands right now: the ledger balance, what has been reconciled,
+   * and what is still outstanding on each side. `expectedStatementBalance` is what the bank
+   * statement should read if every unreconciled item is genuinely still in transit.
+   */
+  async summary(id: string) {
+    const b = await this.bank(id);
+    const db = this.ctx.db;
+    const [book] = await db
+      .select({ balance: sql<string>`coalesce(sum(${t.journalLines.debit} - ${t.journalLines.credit}), 0)` })
+      .from(t.journalLines)
+      .innerJoin(t.journalEntries, eq(t.journalEntries.id, t.journalLines.entryId))
+      .where(and(eq(t.journalLines.accountId, b.accountId), sql`${t.journalEntries.status} in ('posted','reversed')`));
+    const [statement] = await db
+      .select({
+        reconciled: sql<string>`coalesce(sum(${t.bankStatementLines.amount}) filter (where ${t.bankStatementLines.reconciledAt} is not null), 0)`,
+        unreconciled: sql<string>`coalesce(sum(${t.bankStatementLines.amount}) filter (where ${t.bankStatementLines.reconciledAt} is null), 0)`,
+        openItems: sql<number>`count(*) filter (where ${t.bankStatementLines.reconciledAt} is null)::int`,
+      })
+      .from(t.bankStatementLines)
+      .where(eq(t.bankStatementLines.bankAccountId, id));
+    const matched = await db
+      .select({ id: t.bankStatementLines.matchedJournalLineId })
+      .from(t.bankStatementLines)
+      .where(and(eq(t.bankStatementLines.bankAccountId, id), sql`${t.bankStatementLines.matchedJournalLineId} is not null`));
+    const matchedIds = matched.map((m) => m.id).filter((x): x is string => !!x);
+    const [ledgerOpen] = await db
+      .select({
+        amount: sql<string>`coalesce(sum(${t.journalLines.debit} - ${t.journalLines.credit}), 0)`,
+        items: sql<number>`count(*)::int`,
+      })
+      .from(t.journalLines)
+      .innerJoin(t.journalEntries, eq(t.journalEntries.id, t.journalLines.entryId))
+      .where(
+        and(
+          eq(t.journalLines.accountId, b.accountId),
+          sql`${t.journalEntries.status} in ('posted','reversed')`,
+          matchedIds.length ? notInArray(t.journalLines.id, matchedIds) : undefined,
+        ),
+      );
+    const [last] = await db
+      .select()
+      .from(t.bankReconciliations)
+      .where(eq(t.bankReconciliations.bankAccountId, id))
+      .orderBy(desc(t.bankReconciliations.statementDate))
+      .limit(1);
+
+    return {
+      bankAccount: b,
+      openingBalance: m2(b.openingBalance),
+      openingDate: b.openingDate,
+      bookBalance: m2(book.balance),
+      reconciledStatementAmount: m2(statement?.reconciled ?? 0),
+      unreconciledStatementAmount: m2(statement?.unreconciled ?? 0),
+      openStatementItems: statement?.openItems ?? 0,
+      unreconciledLedgerAmount: m2(ledgerOpen.amount),
+      openLedgerItems: ledgerOpen.items,
+      /** Book balance less ledger entries the bank has not shown yet. */
+      expectedStatementBalance: m2(D(book.balance).minus(ledgerOpen.amount)),
+      lastReconciled: last ? { date: last.statementDate, statementBalance: last.statementBalance, difference: last.difference } : null,
+    };
+  }
+
+  /** Records a reconciliation against the statement balance the bank shows on that date. */
+  async closeReconciliation(id: string, dto: { statementDate: string; statementBalance: string; notes?: string | null }) {
+    const s = await this.summary(id);
+    const difference = D(dto.statementBalance).minus(s.expectedStatementBalance);
+    const [row] = await this.ctx.db
+      .insert(t.bankReconciliations)
+      .values({
+        bankAccountId: id,
+        statementDate: dto.statementDate,
+        statementBalance: m2(dto.statementBalance),
+        bookBalance: s.bookBalance,
+        difference: m2(difference),
+        notes: dto.notes,
+        closedBy: this.ctx.userId,
+      })
+      .onConflictDoUpdate({
+        target: [t.bankReconciliations.bankAccountId, t.bankReconciliations.statementDate],
+        set: { statementBalance: m2(dto.statementBalance), bookBalance: s.bookBalance, difference: m2(difference), notes: dto.notes, closedBy: this.ctx.userId },
+      })
+      .returning();
+    await this.ctx.db
+      .update(t.bankAccounts)
+      .set({ lastReconciledDate: dto.statementDate, lastReconciledBalance: m2(dto.statementBalance) })
+      .where(eq(t.bankAccounts.id, id));
+    await this.audit.log('reconcile', 'bank_account', id, null, row);
+    return { ...row, matched: difference.isZero() };
   }
 
   /** Statement lines + unmatched ledger lines for the bank GL account, for side-by-side matching. */

@@ -200,6 +200,124 @@ async function main() {
   await post(`/payroll-runs/${run.id}/finalize`);
   await post(`/payroll-runs/${run.id}/pay`, { cashAccountId: acct('1121'), date: `${month}-05` > today ? today : `${month}-05` });
 
+
+  console.log('• bank account with an existing balance');
+  const bank2 = await post('/bank-accounts', {
+    accountCode: '1123', bankName: 'BRAC Bank', branchName: 'Gulshan', accountNo: '1501203456789', routingNo: '060260435',
+    openingBalance: '12500000', openingDate: fyStart,
+  });
+  await post(`/bank-accounts/${bank2.id}/statement-lines`, {
+    lines: [
+      { date: fyStart, description: 'Opening balance brought forward', amount: '12500000' },
+      { date: daysAgo(12), description: 'Cheque 884512 — not yet in the books', amount: '-450000' },
+    ],
+  });
+
+  console.log('• investors');
+  const inv1 = await post('/investors', { name: 'Rahman Holdings Ltd', type: 'company', contactPerson: 'Mizanur Rahman', phone: '01711-445566', tin: '445566778899', bankName: 'City Bank', bankAccountNo: '2301998877' });
+  const inv2 = await post('/investors', { name: 'Ayesha Siddiqua', type: 'individual', phone: '01911-334455', nid: '1990123456789' });
+  const ag1 = await post('/investors/agreements', {
+    investorId: inv1.id, projectId: p1.id, date: daysAgo(110), committedAmount: '25000000', profitSharePercent: '30', sharesLoss: true,
+    startDate: daysAgo(110), terms: '30% of the project profit, settled each quarter after the RA bill is certified.',
+  });
+  const ag2 = await post('/investors/agreements', {
+    investorId: inv2.id, projectId: p2.id, date: daysAgo(55), committedAmount: '10000000', profitSharePercent: '15', sharesLoss: false,
+    startDate: daysAgo(55), terms: '15% of the project profit. The investor does not carry losses.',
+  });
+  await post('/investors/transactions', { investorId: inv1.id, agreementId: ag1.id, projectId: p1.id, date: daysAgo(80), type: 'contribution', amount: '15000000', cashAccountId: acct('1121'), method: 'bank_transfer', reference: 'FT-778901' });
+  await post('/investors/transactions', { investorId: inv1.id, agreementId: ag1.id, projectId: p1.id, date: daysAgo(40), type: 'contribution', amount: '10000000', cashAccountId: acct('1121'), method: 'bank_transfer', reference: 'FT-801233' });
+  await post('/investors/transactions', { investorId: inv2.id, agreementId: ag2.id, projectId: p2.id, date: daysAgo(45), type: 'contribution', amount: '6000000', cashAccountId: acct('1121'), method: 'cheque', reference: 'CHQ-110234' });
+  for (const [project, agreement] of [[p1, ag1], [p2, ag2]]) {
+    const ent = await get(`/investors/projects/${project.id}/entitlements`);
+    const line = ent.investors.find((x) => x.agreementId === agreement.id);
+    if (line && Number(line.toBook) > 0) {
+      await post('/investors/allocate-profit', { agreementId: agreement.id, date: today, periodFrom: fyStart, periodTo: today });
+    }
+  }
+
+  console.log('• quotations');
+  await post('/quotations', {
+    date: daysAgo(20), validUntil: daysAgo(-10), clientId: client2.id, title: 'Internal Road & Drain — Phase 2', location: 'Bashundhara R/A, Dhaka',
+    projectCode: 'GVH-RD2', discount: '250000', vatPercent: '7.5', retentionPercent: '5',
+    terms: '30% mobilization advance. Payment within 30 days of each certified bill. Rates hold for 60 days.',
+    lines: [
+      { lineNo: '1', description: 'Earthwork & sub-base', isSection: true },
+      { lineNo: '1.1', description: 'Excavation in ordinary soil', uom: 'cft', quantity: '42000', rate: '38' },
+      { lineNo: '1.2', description: 'Sand filling, compacted in layers', uom: 'cft', quantity: '18000', rate: '62' },
+      { lineNo: '2', description: 'Road works', isSection: true },
+      { lineNo: '2.1', description: 'RCC pavement 150mm thick', uom: 'sft', quantity: '26000', rate: '385' },
+      { lineNo: '2.2', description: 'RCC drain 600mm with cover slab', uom: 'rft', quantity: '2400', rate: '2150' },
+    ],
+  });
+  const wonQuote = await post('/quotations', {
+    date: daysAgo(45), validUntil: daysAgo(15), clientId: client1.id, title: 'Boundary Wall & Guard House — RHD Depot', location: 'Madanpur, Narayanganj',
+    projectCode: 'RHD-BW', discount: '0', vatPercent: '7.5', retentionPercent: '10',
+    lines: [
+      { lineNo: '1', description: 'RCC boundary wall with MS grill', uom: 'rft', quantity: '1800', rate: '4250' },
+      { lineNo: '2', description: 'Guard house 12ft x 10ft', uom: 'nos', quantity: '2', rate: '685000' },
+    ],
+  });
+  await post(`/quotations/${wonQuote.id}/status`, { status: 'sent' });
+  await post(`/quotations/${wonQuote.id}/win`, { projectCode: 'RHD-BW', startDate: daysAgo(30), endDate: daysAgo(-150), mobilizationAdvance: '0', advanceRecoveryPercent: '0', createSiteStore: true });
+
+  console.log('• company documents');
+  for (const d of [
+    { category: 'trade_licence', title: 'Trade Licence — Dhaka North City Corporation', docNo: 'TRAD/DNCC/2026/009871', issuedBy: 'DNCC', issueDate: daysAgo(340), expiryDate: daysAgo(-25) },
+    { category: 'incorporation', title: 'Certificate of Incorporation', docNo: 'C-118845/2015', issuedBy: 'RJSC' },
+    { category: 'tin_bin', title: 'VAT Registration (BIN)', docNo: '000998877-0101', issuedBy: 'NBR' },
+    { category: 'licence_enlistment', title: 'RHD Contractor Enlistment — Class A', docNo: 'RHD/ENL/A/442', issuedBy: 'Roads & Highways Department', issueDate: daysAgo(200), expiryDate: daysAgo(-140) },
+    { category: 'insurance', title: 'Contractor All Risk Policy — Bypass Bridge', docNo: 'CAR/2026/7781', issuedBy: 'Green Delta Insurance', issueDate: daysAgo(115), expiryDate: daysAgo(-5), projectId: p1.id },
+  ]) {
+    await post('/company-documents', d);
+  }
+
+  console.log('• EB-3 visa cases');
+  const employer = await post('/eb3/employers', {
+    code: 'USE-01', name: 'Midwest Food Processing LLC', contactPerson: 'Karen Fischer', email: 'hr@midwestfp.example',
+    city: 'Des Moines', state: 'IA', industry: 'Meat processing', fein: '42-1889021', attorneyName: 'Delgado & Park LLP', status: 'active',
+  });
+  const employer2 = await post('/eb3/employers', {
+    code: 'USE-02', name: 'Blue Ridge Care Homes Inc', contactPerson: 'Daniel Pratt', city: 'Asheville', state: 'NC', industry: 'Elderly care', status: 'active',
+  });
+  const job1 = await post('/eb3/job-orders', { employerId: employer.id, title: 'Meat Cutter', socCode: '51-3021', positions: 4, offeredWage: '19.50', wageUnit: 'hour', worksiteCity: 'Des Moines', worksiteState: 'IA', openedDate: daysAgo(150), requirements: '2 years of experience. No formal education required.' });
+  await post('/eb3/job-orders', { employerId: employer2.id, title: 'Nursing Assistant', socCode: '31-1131', positions: 6, offeredWage: '17.25', wageUnit: 'hour', worksiteCity: 'Asheville', worksiteState: 'NC', openedDate: daysAgo(60) });
+
+  const candidates = [];
+  for (const [fullName, passport, phone, skill, english, district] of [
+    ['Md. Sohel Rana', 'BW0912345', '01811-223344', 'Meat cutting', 'basic', 'Comilla'],
+    ['Abdul Karim Mia', 'BX1123456', '01712-556677', 'Meat cutting', 'conversational', 'Sylhet'],
+    ['Farhana Akter', 'BY2234567', '01911-889900', 'Caregiving', 'conversational', 'Dhaka'],
+    ['Rasel Ahmed', 'BZ3345678', '01611-114477', 'Meat cutting', 'basic', 'Jessore'],
+  ]) {
+    candidates.push(
+      await post('/eb3/candidates', {
+        fullName, passportNo: passport, passportIssueDate: daysAgo(500), passportExpiry: daysAgo(-1300), phone, skill,
+        englishLevel: english, district, education: 'HSC', experienceYears: 4, status: 'screening', source: 'Referral',
+      }),
+    );
+  }
+
+  const case1 = await post('/eb3/cases', { candidateId: candidates[0].id, employerId: employer.id, jobOrderId: job1.id, openedDate: daysAgo(140), agreedFee: '650000', attorneyName: 'Delgado & Park LLP', notes: 'Employer wants the first cutter on site before next season.' });
+  for (const step of [
+    { stage: 'prevailing_wage', date: daysAgo(135) },
+    { stage: 'recruitment', date: daysAgo(120) },
+    { stage: 'perm_filed', date: daysAgo(100), permCaseNo: 'A-26001-99887' },
+    { stage: 'perm_approved', date: daysAgo(40) },
+    { stage: 'i140_filed', date: daysAgo(30), i140Receipt: 'MSC2690012345' },
+  ]) {
+    await post(`/eb3/cases/${case1.id}/advance`, step);
+  }
+  const case2 = await post('/eb3/cases', { candidateId: candidates[1].id, employerId: employer.id, jobOrderId: job1.id, openedDate: daysAgo(90), agreedFee: '650000' });
+  await post(`/eb3/cases/${case2.id}/advance`, { stage: 'recruitment', date: daysAgo(70), notes: 'Newspaper and state workforce advertisements placed.' });
+  for (const [c, cand, amount, type, direction, method] of [
+    [case1, candidates[0], '250000', 'service_fee', 'in', 'bank_transfer'],
+    [case1, candidates[0], '18000', 'medical', 'out', 'cash'],
+    [case1, candidates[0], '95000', 'attorney_fee', 'out', 'bank_transfer'],
+    [case2, candidates[1], '150000', 'service_fee', 'in', 'cash'],
+  ]) {
+    await post('/eb3/payments', { caseId: c.id, candidateId: cand.id, date: daysAgo(20), type, direction, amount, cashAccountId: acct('1121'), method });
+  }
+
   const tb = await get(`/reports/trial-balance?asOf=${today}`);
   console.log(`✔ demo data loaded for "${slug}" — trial balance ${tb.balanced ? 'balanced' : 'NOT balanced'} (${tb.totalDebit})`);
 }

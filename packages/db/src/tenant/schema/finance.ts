@@ -275,6 +275,12 @@ export const bankAccounts = pgTable('bank_accounts', {
   accountNo: varchar('account_no', { length: 50 }).notNull(),
   routingNo: varchar('routing_no', { length: 20 }),
   currency: varchar('currency', { length: 3 }).notNull().default('BDT'),
+  /** Balance the account already held when it was entered, and the date it applies to. */
+  openingBalance: money('opening_balance').notNull().default('0'),
+  openingDate: date('opening_date'),
+  /** Set when a reconciliation is closed, so the next one starts from a known point. */
+  lastReconciledDate: date('last_reconciled_date'),
+  lastReconciledBalance: money('last_reconciled_balance'),
   isActive: boolean('is_active').notNull().default(true),
   ...timestamps(),
 });

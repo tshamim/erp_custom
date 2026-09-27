@@ -25,6 +25,16 @@ export const DOC_PREFIX: Record<string, string> = {
   subcontract_bill: 'SCB',
   ra_bill: 'RA',
   payroll: 'PRL',
+  investor: 'INVR',
+  investment_agreement: 'IAG',
+  investor_contribution: 'ICN',
+  investor_payout: 'IPO',
+  investor_profit: 'IPS',
+  quotation: 'QTN',
+  eb3_job_order: 'JO',
+  eb3_candidate: 'CAN',
+  eb3_case: 'EB3',
+  eb3_payment: 'EBP',
 };
 
 @Injectable()

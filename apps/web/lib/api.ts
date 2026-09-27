@@ -174,6 +174,18 @@ export async function fetchFile(path: string, filename: string, inline = false, 
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/** Fetches a protected file and returns an object URL — for showing images inline. */
+export async function fetchBlobUrl(path: string, retry = true): Promise<string> {
+  const s = getSession();
+  const headers: Record<string, string> = {};
+  if (s?.accessToken) headers.authorization = `Bearer ${s.accessToken}`;
+  if (s?.tenant) headers['x-tenant'] = s.tenant;
+  const res = await fetch(API_URL + path, { headers, credentials: 'include' });
+  if (res.status === 401 && retry && (await refresh())) return fetchBlobUrl(path, false);
+  if (!res.ok) throw new ApiError(res.status, `Download failed (${res.status})`, null);
+  return URL.createObjectURL(await res.blob());
+}
+
 export function qs(params: Record<string, string | number | boolean | undefined | null>) {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') p.set(k, String(v));

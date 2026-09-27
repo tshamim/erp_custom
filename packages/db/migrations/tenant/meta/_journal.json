@@ -29,6 +29,13 @@
       "when": 1790078996586,
       "tag": "0003_audit_impersonation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790493238341,
+      "tag": "0004_investors_quotations_documents_eb3",
+      "breakpoints": true
     }
   ]
 }
