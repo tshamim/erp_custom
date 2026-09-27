@@ -353,6 +353,9 @@ describe('ERP flow (e2e)', () => {
     });
     expect(overdraw.status).toBe(400);
 
+    expect((await ok('get', `/investors/${ids.investor}`)).name).toBe('Rahman Holdings');
+    expect((await ok('get', `/investors/agreements/${ids.agreement}`)).profitSharePercent).toBe('30.000000');
+
     const statement = await ok('get', `/investors/${ids.investor}/statement`);
     expect(statement.summary.contributed).toBe('1000000.00');
     expect(statement.summary.profitBooked).toBe('22200.00');
@@ -463,6 +466,11 @@ describe('ERP flow (e2e)', () => {
     expect(visa.candidate.status).toBe('visa_issued');
     const departed = await ok('post', `/eb3/cases/${ids.case}/advance`, { stage: 'departed', date: today });
     expect(departed.status).toBe('closed');
+
+    // The edit screens fetch one record at a time.
+    expect((await ok('get', `/eb3/employers/${ids.employer}`)).code).toBe('USE-01');
+    expect((await ok('get', `/eb3/job-orders/${ids.job}`)).title).toBe('Meat Cutter');
+    expect((await ok('get', `/eb3/candidates/${ids.candidate}`)).fullName).toBe('Md. Sohel Rana');
 
     const pipeline = await ok('get', '/eb3/pipeline');
     expect(pipeline.find((p: { stage: string }) => p.stage === 'departed').count).toBe(0);

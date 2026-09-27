@@ -83,6 +83,12 @@ export class Eb3Service {
     return { data, total: count, page: q.page, pageSize: q.pageSize };
   }
 
+  async employer(id: string) {
+    const [row] = await this.ctx.db.select().from(t.eb3Employers).where(eq(t.eb3Employers.id, id));
+    if (!row) throw new NotFoundException();
+    return row;
+  }
+
   async createEmployer(dto: Eb3EmployerDto) {
     const [row] = await this.ctx.db.insert(t.eb3Employers).values(dto).returning();
     await this.audit.log('create', 'eb3_employer', row.id, null, row);
@@ -130,6 +136,12 @@ export class Eb3Service {
       .offset((q.page - 1) * q.pageSize);
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(t.eb3JobOrders).where(where);
     return { data: data.map((r) => ({ ...r, vacancies: r.positions - r.filledPositions })), total: count, page: q.page, pageSize: q.pageSize };
+  }
+
+  async jobOrder(id: string) {
+    const [row] = await this.ctx.db.select().from(t.eb3JobOrders).where(eq(t.eb3JobOrders.id, id));
+    if (!row) throw new NotFoundException();
+    return row;
   }
 
   async createJobOrder(dto: Eb3JobOrderDto) {

@@ -90,6 +90,21 @@ export class InvestorsService {
     return row;
   }
 
+  get(id: string) {
+    return this.findInvestor(id);
+  }
+
+  async agreement(id: string) {
+    const [row] = await this.ctx.db
+      .select({ a: t.investmentAgreements, investorName: t.investors.name, projectCode: t.projects.code, projectName: t.projects.name })
+      .from(t.investmentAgreements)
+      .innerJoin(t.investors, eq(t.investors.id, t.investmentAgreements.investorId))
+      .innerJoin(t.projects, eq(t.projects.id, t.investmentAgreements.projectId))
+      .where(eq(t.investmentAgreements.id, id));
+    if (!row) throw new NotFoundException();
+    return { ...row.a, investorName: row.investorName, projectCode: row.projectCode, projectName: row.projectName };
+  }
+
   private async findInvestor(id: string) {
     const [row] = await this.ctx.db.select().from(t.investors).where(eq(t.investors.id, id));
     if (!row) throw new NotFoundException('Investor not found');

@@ -99,6 +99,12 @@ export class InvestorsController {
     return this.svc.createAgreement(dto);
   }
 
+  @Get('agreements/:id')
+  @Perm('investor.agreement.read')
+  agreement(@Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.agreement(id);
+  }
+
   @Patch('agreements/:id')
   @Perm('investor.agreement.update')
   updateAgreement(
@@ -125,6 +131,12 @@ export class InvestorsController {
   @Perm('investor.report.read')
   statement(@Param('id', ParseUUIDPipe) id: string) {
     return this.svc.statement(id);
+  }
+
+  @Get(':id')
+  @Perm('investor.investor.read')
+  get(@Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.get(id);
   }
 
   @Patch(':id')
@@ -246,6 +258,12 @@ export class Eb3Controller {
     return this.svc.createEmployer(dto);
   }
 
+  @Get('employers/:id')
+  @Perm('eb3.employer.read')
+  employer(@Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.employer(id);
+  }
+
   @Patch('employers/:id')
   @Perm('eb3.employer.update')
   updateEmployer(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(eb3EmployerSchema.partial())) dto: Partial<Eb3EmployerDto>) {
@@ -263,6 +281,12 @@ export class Eb3Controller {
   @Perm('eb3.joborder.create')
   createJobOrder(@ZBody(eb3JobOrderSchema) dto: Eb3JobOrderDto) {
     return this.svc.createJobOrder(dto);
+  }
+
+  @Get('job-orders/:id')
+  @Perm('eb3.joborder.read')
+  jobOrder(@Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.jobOrder(id);
   }
 
   @Patch('job-orders/:id')
