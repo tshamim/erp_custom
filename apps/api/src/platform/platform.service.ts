@@ -17,6 +17,8 @@ import { TenantModulesService } from '../tenancy/tenant-modules.service';
 import { TenantContext } from '../tenancy/tenant-context';
 import { PermissionCache } from '../auth/permission-cache.service';
 import { AuthService } from '../auth/auth.service';
+import { MailService } from '../mail/mail.service';
+import { supportSignedIn, tenantWelcome } from '../mail/templates';
 
 export interface PlatformActor {
   id: string;
@@ -34,6 +36,7 @@ export class PlatformService {
     private readonly perms: PermissionCache,
     private readonly ctx: TenantContext,
     private readonly auth: AuthService,
+    private readonly mail: MailService,
   ) {}
 
   // ---------------- helpers ----------------
@@ -236,7 +239,20 @@ export class PlatformService {
     await this.record(actor, 'tenant.create', tenant.id, { slug: dto.slug, modules: wanted });
 
     void provisionTenant(this.control, adminConnectionFromEnv(), tenant.id, { email: dto.adminEmail, name: dto.adminName, password: dto.adminPassword })
-      .then(() => this.connections.invalidate(tenant.slug))
+      .then(() => {
+        this.connections.invalidate(tenant.slug);
+        // Only once the database is really there, so the link in the mail works.
+        return this.mail.send({
+          to: { email: dto.adminEmail, name: dto.adminName },
+          ...tenantWelcome({
+            company: dto.name,
+            slug: dto.slug,
+            adminName: dto.adminName,
+            plan: dto.plan,
+            modules: wanted.map((m) => MODULES[m].label),
+          }),
+        });
+      })
       .catch((e) => this.logger.error(`provisioning ${tenant.slug} failed: ${e.message}`));
     return tenant;
   }
@@ -283,6 +299,18 @@ export class PlatformService {
     this.ctx.bindTenant(conn.tenant, conn.db);
     const result = await this.auth.impersonate({ id: admin.id, email: admin.email }, dto.userId);
     await this.record(actor, 'tenant.impersonate', id, { userId: result.profile.user.id, userEmail: result.profile.user.email, reason: dto.reason });
+    // The company is told every time support signs in — the audit trail alone is easy to miss.
+    const notify = [result.profile.user.email, tenant.contactEmail].filter((e): e is string => !!e);
+    void this.mail.sendEach([...new Set(notify)], () =>
+      supportSignedIn({
+        company: tenant.name,
+        slug: tenant.slug,
+        platformAdmin: admin.email,
+        reason: dto.reason,
+        userEmail: result.profile.user.email,
+        at: new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC',
+      }),
+    );
     return { ...result, tenant: { slug: tenant.slug, name: tenant.name } };
   }
 

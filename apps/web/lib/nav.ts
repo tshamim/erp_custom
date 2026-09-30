@@ -137,6 +137,7 @@ export const NAV: NavSection[] = [
     icon: FolderOpen,
     items: [
       { label: 'Company Documents', href: '/m/company-documents', perm: 'document.document.read' },
+      { label: 'Expiring Soon', href: '/documents/expiring', perm: 'document.document.read' },
       { label: 'Media Gallery', href: '/documents/gallery', perm: 'document.document.read' },
     ],
   },

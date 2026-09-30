@@ -23,7 +23,7 @@ export function PlatformShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-50">
       <header className="flex items-center justify-between bg-slate-900 px-6 py-3 text-white">
         <Link href="/platform" className="flex items-center gap-2 font-semibold">
-          <ShieldCheck className="h-5 w-5 text-brand-500" /> BuildERP Platform
+          <ShieldCheck className="h-5 w-5 text-brand-500" /> Eclectic ERP Platform
         </Link>
         <div className="flex items-center gap-4 text-sm text-slate-300">
           <span className="hidden sm:inline">{session.profile.user.email}</span>

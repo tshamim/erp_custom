@@ -5,6 +5,8 @@ import type { CompanyDocumentDto, ListQuery } from '@erp/shared';
 import { TenantContext } from '../../tenancy/tenant-context';
 import { AuditService } from '../../common/audit.service';
 import { searchClause } from '../../common/pagination';
+import { MailService } from '../../mail/mail.service';
+import { expiringDocuments } from '../../mail/templates';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const in30 = () => new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
@@ -15,6 +17,7 @@ export class DocumentsService {
   constructor(
     private readonly ctx: TenantContext,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private state(expiry: string | null) {
@@ -94,6 +97,36 @@ export class DocumentsService {
       state: this.state(r.d.expiryDate),
       daysLeft: Math.round((Date.parse(r.d.expiryDate!) - Date.parse(today())) / 86_400_000),
     }));
+  }
+
+  /**
+   * Emails the expiring-document list to the company's administrators (or to the addresses
+   * asked for). Run it from the register, or on a schedule from outside the application.
+   */
+  async emailExpiring(to?: string[]) {
+    const documents = await this.expiring();
+    if (!documents.length) return { sent: 0, documents: 0, recipients: [] as string[] };
+
+    const admins = to?.length
+      ? to.map((email) => ({ email, name: email }))
+      : await this.ctx.db
+          .selectDistinct({ email: t.users.email, name: t.users.name })
+          .from(t.users)
+          .innerJoin(t.userRoles, eq(t.userRoles.userId, t.users.id))
+          .innerJoin(t.roles, eq(t.roles.id, t.userRoles.roleId))
+          .where(and(eq(t.users.isActive, true), eq(t.roles.name, 'Admin')));
+    if (!admins.length) return { sent: 0, documents: documents.length, recipients: [] };
+
+    await this.mail.sendEach(admins, (recipient) =>
+      expiringDocuments({
+        company: this.ctx.tenant.name,
+        slug: this.ctx.tenant.slug,
+        name: recipient.name ?? 'Colleague',
+        documents: documents.map((d) => ({ title: d.title, docNo: d.docNo, expiryDate: d.expiryDate, daysLeft: d.daysLeft })),
+      }),
+    );
+    await this.audit.log('notify', 'company_document', null, null, { documents: documents.length, recipients: admins.map((a) => a.email) });
+    return { sent: admins.length, documents: documents.length, recipients: admins.map((a) => a.email) };
   }
 
   /**

@@ -210,6 +210,13 @@ export class CompanyDocumentsController {
     return this.svc.expiring();
   }
 
+  /** Emails the expiring list to the company's administrators. */
+  @Post('expiring/email')
+  @Perm('document.document.update')
+  emailExpiring(@ZBody(z.object({ to: z.array(z.string().email()).optional() })) dto: { to?: string[] }) {
+    return this.svc.emailExpiring(dto.to);
+  }
+
   @Get('gallery')
   @Perm('document.document.read')
   gallery(@Query('entity') entity?: string, @Query('entityId') entityId?: string, @Query('limit') limit?: string) {

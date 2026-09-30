@@ -9,6 +9,8 @@ import { NumberingService } from '../../common/numbering.service';
 import { PostingService } from '../../ledger/posting.service';
 import { D, Decimal, m2 } from '../../common/money';
 import { searchClause } from '../../common/pagination';
+import { MailService } from '../../mail/mail.service';
+import { eb3CaseUpdate } from '../../mail/templates';
 
 /** The checklist every new case starts with; officers add or remove rows afterwards. */
 const DEFAULT_CHECKLIST = [
@@ -22,6 +24,9 @@ const DEFAULT_CHECKLIST = [
   'Photographs (2x2)',
   'Signed service agreement',
 ];
+
+/** Milestones worth telling the candidate about; the rest are internal paperwork. */
+const MAILED_STAGES = new Set(['perm_approved', 'i140_approved', 'nvc_processing', 'interview_scheduled', 'visa_approved', 'visa_denied', 'departed']);
 
 /** Stage index, used to keep `stage` at the furthest point reached. */
 export function stageIndex(stage: string) {
@@ -47,6 +52,7 @@ export class Eb3Service {
     private readonly audit: AuditService,
     private readonly numbering: NumberingService,
     private readonly posting: PostingService,
+    private readonly mail: MailService,
   ) {}
 
   // ---------- employers ----------
@@ -451,6 +457,23 @@ export class Eb3Service {
       return updated;
     });
     await this.audit.log('advance', 'eb3_case', id, { stage: before.stage }, { stage: row.stage, event: dto.stage, date: dto.date });
+    // Candidates ask "where is my file?" constantly; the milestones answer it for them.
+    if (MAILED_STAGES.has(dto.stage) && before.candidate.email) {
+      void this.mail.send({
+        to: { email: before.candidate.email, name: before.candidate.fullName },
+        ...eb3CaseUpdate({
+          company: this.ctx.tenant.name,
+          candidateName: before.candidate.fullName,
+          caseNo: before.no,
+          stage: dto.stage,
+          stageDate: dto.date,
+          employer: before.employerName,
+          interviewDate: row.interviewDate,
+          consulate: row.consulate,
+          notes: dto.notes,
+        }),
+      });
+    }
     return this.case(id);
   }
 

@@ -8,6 +8,8 @@ import { TenantContext } from '../../tenancy/tenant-context';
 import { AuditService } from '../../common/audit.service';
 import { PermissionCache } from '../../auth/permission-cache.service';
 import { searchClause } from '../../common/pagination';
+import { MailService } from '../../mail/mail.service';
+import { passwordChanged, userWelcome } from '../../mail/templates';
 
 const publicCols = {
   id: t.users.id,
@@ -27,6 +29,7 @@ export class UsersService {
     private readonly ctx: TenantContext,
     private readonly audit: AuditService,
     private readonly perms: PermissionCache,
+    private readonly mail: MailService,
     @Inject(CONTROL_DB) private readonly control: ControlDb,
   ) {}
 
@@ -96,7 +99,19 @@ export class UsersService {
       return u.id;
     });
     await this.audit.log('create', 'user', id, null, { ...dto, password: undefined });
+    void this.mailWelcome(dto);
     return this.get(id);
+  }
+
+  /** Tells the new colleague they have an account, and where to sign in. Never their password. */
+  private async mailWelcome(dto: UserDto) {
+    const roles = dto.roleIds.length
+      ? (await this.ctx.db.select({ name: t.roles.name }).from(t.roles).where(inArray(t.roles.id, dto.roleIds))).map((r) => r.name)
+      : [];
+    await this.mail.send({
+      to: { email: dto.email, name: dto.name },
+      ...userWelcome({ company: this.ctx.tenant.name, slug: this.ctx.tenant.slug, name: dto.name, email: dto.email, roles }),
+    });
   }
 
   async update(id: string, dto: Partial<UserDto>) {
@@ -124,6 +139,20 @@ export class UsersService {
     this.perms.invalidate(this.ctx.tenant.id, id);
     const after = await this.get(id);
     await this.audit.log('update', 'user', id, before, after);
+    if (dto.password) {
+      const [actor] = this.ctx.userId
+        ? await this.ctx.db.select({ name: t.users.name }).from(t.users).where(eq(t.users.id, this.ctx.userId))
+        : [undefined];
+      void this.mail.send({
+        to: { email: after.email, name: after.name },
+        ...passwordChanged({
+          company: this.ctx.tenant.name,
+          slug: this.ctx.tenant.slug,
+          name: after.name,
+          by: this.ctx.impersonator ? `${this.ctx.impersonator} (support)` : (actor?.name ?? 'an administrator'),
+        }),
+      });
+    }
     return after;
   }
 }

@@ -66,7 +66,7 @@ export default function LoginPage() {
             <HardHat className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-lg font-semibold">BuildERP</div>
+            <div className="text-lg font-semibold">Eclectic ERP</div>
             <div className="text-xs text-slate-500">Sign in to your company</div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 # Deployment guide
 
-How to put BuildERP on a server for real use. Everything runs in Docker; you do not install Node,
+How to put Eclectic ERP on a server for real use. Everything runs in Docker; you do not install Node,
 PostgreSQL or MinIO by hand.
 
 Read [Before you start](#before-you-start) and [Secrets](#secrets) even if you skip the rest — the
@@ -86,7 +86,22 @@ MINIO_ACCESS_KEY=erp
 
 PLATFORM_ADMIN_EMAIL=owner@yourcompany.com
 PLATFORM_ADMIN_PASSWORD=<a strong password you choose>
+
+# Email (Mailtrap). Leave the token empty and nothing is sent — mail is only written to the log.
+MAILTRAP_API_TOKEN=<from Mailtrap → Sending Domains → API tokens>
+MAILTRAP_INBOX_ID=                          # set only to divert everything to a Mailtrap test inbox
+MAIL_FROM=no-reply@yourcompany.com          # must be on a domain verified in Mailtrap
+MAIL_FROM_NAME=Eclectic ERP
+MAIL_REPLY_TO=support@yourcompany.com
+BRAND_NAME=Eclectic ERP
+APP_URL=https://erp.example.com             # links in emails point here
+MAIL_TENANT_SUBDOMAINS=false                # true if each company uses <slug>.erp.example.com
+MAIL_MIN_INTERVAL_MS=2000                   # minimum gap between two sends
 ```
+
+> **Sending for real needs a verified domain in Mailtrap.** Until the domain's DNS records are
+> verified, live sending is refused with `401 Unauthorized`; use a test inbox (`MAILTRAP_INBOX_ID`)
+> in the meantime, which accepts everything and shows it in Mailtrap instead of delivering it.
 
 Remove the duplicate keys the generator appended above the ones already in the file, keeping the
 generated values. Then lock the file down:

@@ -7,6 +7,8 @@ import { AuditService } from '../../common/audit.service';
 import { NumberingService } from '../../common/numbering.service';
 import { D, m2, pct, q4, sum } from '../../common/money';
 import { searchClause } from '../../common/pagination';
+import { MailService } from '../../mail/mail.service';
+import { quotationSent } from '../../mail/templates';
 
 /** Quotation totals. Pure: subtotal of priced lines, less discount, plus VAT. */
 export function computeQuotation(lines: { quantity: string; rate: string; isSection: boolean }[], discount: string, vatPercent: string) {
@@ -24,6 +26,7 @@ export class QuotationsService {
     private readonly ctx: TenantContext,
     private readonly audit: AuditService,
     private readonly numbering: NumberingService,
+    private readonly mail: MailService,
   ) {}
 
   async list(q: ListQuery) {
@@ -167,7 +170,34 @@ export class QuotationsService {
       .where(eq(t.quotations.id, id))
       .returning();
     await this.audit.log(status, 'quotation', id, { status: quotation.status }, { status, reason });
+    if (status === 'sent') void this.mailToClient(quotation);
     return row;
+  }
+
+  /** Emails the client the offer as soon as it is marked sent, if they have an email on file. */
+  private async mailToClient(quotation: Awaited<ReturnType<QuotationsService['get']>>) {
+    if (!quotation.clientId) return;
+    const [client] = await this.ctx.db.select({ name: t.parties.name, email: t.parties.email }).from(t.parties).where(eq(t.parties.id, quotation.clientId));
+    if (!client?.email) return;
+    const [sender] = this.ctx.userId
+      ? await this.ctx.db.select({ email: t.users.email }).from(t.users).where(eq(t.users.id, this.ctx.userId))
+      : [undefined];
+    await this.mail.send({
+      to: { email: client.email, name: client.name },
+      replyTo: sender?.email,
+      ...quotationSent({
+        company: this.ctx.tenant.name,
+        clientName: client.name,
+        no: quotation.no,
+        title: quotation.title,
+        date: quotation.date,
+        validUntil: quotation.validUntil,
+        subtotal: quotation.subtotal,
+        vatAmount: quotation.vatAmount,
+        total: quotation.total,
+        contact: sender?.email,
+      }),
+    });
   }
 
   /**

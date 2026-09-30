@@ -29,6 +29,26 @@ export const config = {
     region: process.env.MINIO_REGION ?? 'us-east-1',
   },
   maxUploadBytes: Number(process.env.MAX_UPLOAD_MB ?? 20) * 1024 * 1024,
+  mail: {
+    /** "mailtrap" sends; anything else only logs what would have been sent. */
+    provider: process.env.MAIL_PROVIDER ?? (process.env.MAILTRAP_API_TOKEN ? 'mailtrap' : 'log'),
+    token: process.env.MAILTRAP_API_TOKEN ?? '',
+    /** Set for a Mailtrap testing inbox; leave empty to send for real from a verified domain. */
+    inboxId: process.env.MAILTRAP_INBOX_ID ?? '',
+    apiUrl: process.env.MAILTRAP_API_URL ?? '',
+    from: {
+      email: process.env.MAIL_FROM ?? 'no-reply@eclecticerp.app',
+      name: process.env.MAIL_FROM_NAME ?? 'Eclectic ERP',
+    },
+    replyTo: process.env.MAIL_REPLY_TO || undefined,
+    brand: process.env.BRAND_NAME ?? 'Eclectic ERP',
+    /** Where links in emails point. */
+    appUrl: process.env.APP_URL ?? (process.env.WEB_ORIGIN ?? 'http://localhost:3100').split(',')[0],
+    /** Minimum gap between two sends; free Mailtrap inboxes allow about one per second. */
+    minIntervalMs: Number(process.env.MAIL_MIN_INTERVAL_MS ?? 2000),
+    /** Companies reachable at <slug>.yourdomain — links then carry the subdomain. */
+    useSubdomains: process.env.MAIL_TENANT_SUBDOMAINS === 'true',
+  },
   /** Hostname labels that are never treated as a tenant subdomain. */
   reservedSubdomains: new Set(['www', 'api', 'app', 'localhost', 'platform']),
 };

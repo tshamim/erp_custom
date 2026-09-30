@@ -42,7 +42,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{session.profile.tenant?.name}</div>
-          <div className="text-[11px] text-slate-400">BuildERP</div>
+          <div className="text-[11px] text-slate-400">Eclectic ERP</div>
         </div>
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-4">

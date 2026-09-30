@@ -1,6 +1,6 @@
-# BuildERP: multi-tenant construction ERP
+# Eclectic ERP: multi-tenant construction ERP
 
-BuildERP is an ERP for construction companies in Bangladesh. It covers projects, HR, payroll, finance, inventory and procurement. Every company (tenant) runs on its own PostgreSQL database.
+Eclectic ERP is an ERP for construction companies in Bangladesh. It covers projects, HR, payroll, finance, inventory and procurement. Every company (tenant) runs on its own PostgreSQL database.
 
 | Layer | Tech |
 |---|---|
@@ -44,6 +44,7 @@ BuildERP is an ERP for construction companies in Bangladesh. It covers projects,
 | Investors & profit sharing | Investor register, per-project agreements with an agreed share of that project's profit (shares on one project cannot exceed 100%), contributions and payouts posted to the ledger, profit (or loss) allocation computed from the project's own ledger profit and bookable period by period without double counting, and a full investor statement with a running balance |
 | Company documents & media | Trade licence, incorporation, BIN/TIN, enlistment, insurance and contract papers with issue/expiry tracking and a 30-day expiry warning, optional project link, confidential flag, plus a gallery of every image uploaded anywhere in the system |
 | EB-3 visa processing | US employers, job orders with seat tracking, candidates, and cases walked through the statutory stages (prevailing wage → recruitment → PERM → I-140 → NVC/DS-260 → interview → visa → departure) with a timeline, a document checklist and fees in and out posted to the ledger. Case administration only — it records dates and documents and gives no legal advice |
+| Email | Transactional email through Mailtrap: a welcome mail when a company or a user is created, a security notice when a password is changed or when platform support signs in, the quotation to the client when it is marked sent, an expiring-documents digest to the administrators, and EB-3 milestones to the candidate. Sending is fire-and-forget and rate-limited, so a mail failure never breaks the operation that triggered it; with no API token configured, mail is logged instead of sent |
 | Files | Attachments on any record (drag & drop, preview, download), stored in MinIO under a per-company prefix |
 | Import / export | CSV import with a downloadable template, dry-run validation and all-or-nothing apply (items, parties, employees, departments, designations, warehouses, equipment, BOQ, opening stock); CSV and PDF export plus print layouts on every list, document and report |
 | Admin | Users, custom roles with per-permission toggles, branches, audit log (before/after, incl. platform-support actions), company and payroll settings |

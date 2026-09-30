@@ -76,7 +76,7 @@ export async function exportPdf(title: string, sections: PdfSection[], subtitle?
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const widest = Math.max(0, ...sections.map((s) => s.table?.columns.length ?? 0));
   const doc = new jsPDF({ orientation: widest > 7 ? 'landscape' : 'portrait', unit: 'pt', format: 'a4' });
-  const company = getSession()?.profile.tenant?.name ?? 'BuildERP';
+  const company = getSession()?.profile.tenant?.name ?? 'Eclectic ERP';
   const width = doc.internal.pageSize.getWidth();
   doc.setFontSize(9).setTextColor(110).text(company, 40, 32);
   doc.text(`Printed ${new Date().toLocaleString('en-GB')}`, width - 40, 32, { align: 'right' });
