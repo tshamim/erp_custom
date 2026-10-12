@@ -1,7 +1,7 @@
 # Deployment guide
 
 How to put Eclectic ERP on a server for real use. Everything runs in Docker; you do not install Node,
-PostgreSQL or MinIO by hand.
+PostgreSQL or MinIO by hand. Deploying through Coolify instead? See [COOLIFY.md](COOLIFY.md).
 
 Read [Before you start](#before-you-start) and [Secrets](#secrets) even if you skip the rest — the
 encryption key in particular cannot be recovered once data exists.
