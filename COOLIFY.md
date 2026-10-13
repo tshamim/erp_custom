@@ -86,12 +86,13 @@ then replace every `<...>`:
 * the five secrets from step 2,
 * `WEB_ORIGIN` and `APP_URL` = the web domain, `NEXT_PUBLIC_API_URL` = the API domain, all with `https://`
   and no trailing slash,
+* `NEXT_PUBLIC_APP_DOMAIN` = the web hostname **without** `https://` (e.g. `erp.example.com`),
 * `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` for the platform owner,
 * Mailtrap settings if you want email delivered. Leave the token empty and mail is only written to the log.
 
-Save, then open `NEXT_PUBLIC_API_URL` and tick **Available at Buildtime** (in some Coolify versions,
-**Build Variable**). The web app bakes this address into the browser bundle while it builds; without
-it the build fails.
+Save, then open `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_APP_DOMAIN` and tick **Available at Buildtime** on
+each (in some Coolify versions, **Build Variable**). The web app bakes both into the browser bundle while
+it builds; without them the build fails.
 
 `docker-compose.coolify.yml` marks the required variables with `${VAR:?}`, so a deploy with one missing
 stops with *required variable … is missing a value* instead of starting half-configured.
@@ -207,16 +208,71 @@ Test a restore on a spare resource before go-live.
 | Deploy stops with *required variable … is missing a value* | That variable is empty in Coolify. Set it and redeploy. |
 | Web build fails, or the app calls `localhost:4100` | `NEXT_PUBLIC_API_URL` not set, or not marked **Available at Buildtime**. Fix it and **Redeploy**. |
 | `migrate` exits non-zero, API never starts | Logs → `migrate`. Usually a `PG_ADMIN_PASSWORD` changed after the first deploy: Postgres keeps the password from its first start. Set the old value back. |
+| Login page shows Company ID locked to `erp` (the first part of the web domain) | `NEXT_PUBLIC_APP_DOMAIN` missing or wrong. Set it to the web hostname, tick **Available at Buildtime**, and **Redeploy**. |
 | *Unknown company "…"* on the platform pages | The API domain does not start with `api.` (see [Before you start](#1-before-you-start)). |
 | Browser shows "Network error" after login | `WEB_ORIGIN` does not exactly match the address in the browser (scheme included, no trailing slash). Fix and **Restart**. |
 | Signed out on every reload | The web and API domains are on different registrable domains. Keep both under the same parent domain, e.g. `erp.example.com` and `api.example.com`, so the refresh cookie is sent. |
 | 404 / *no available server* | Domain missing the `:3100` / `:4100` port suffix, or DNS not pointing at this server yet. |
 | Certificate not issued | DNS not pointing here yet, or port 80 blocked: Let's Encrypt validates over HTTP. |
 
+## Optional: a subdomain per company
+
+By default staff open `https://erp.example.com/login` and type their Company ID. With a subdomain per
+company, `https://acme.erp.example.com` fills in and locks the Company ID instead. It needs three
+things: a wildcard DNS record, a wildcard certificate, and the API allowing those origins.
+
+1. **DNS.** Add `*.erp` → the server's IP (an A record for `*.erp.example.com`).
+   *Cloudflare:* set this record to **DNS only** (grey cloud). Cloudflare's free certificate covers one
+   level (`*.example.com`), not `*.erp.example.com`, so proxying it fails with an SSL error. The
+   certificate then comes from the server, in the next step.
+2. **Wildcard certificate.** Let's Encrypt only issues wildcards through a DNS challenge. In Coolify:
+   **Servers → (server) → Proxy**, switch the `letsencrypt` resolver from the HTTP challenge to a DNS
+   challenge for your DNS provider and give Traefik the provider's API token. For Cloudflare, create a
+   token with *Zone → DNS → Edit* on the zone, then in the proxy configuration replace
+   `--certificatesresolvers.letsencrypt.acme.httpchallenge=true` (and its `entrypoint` line) with:
+
+   ```yaml
+   - '--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare'
+   - '--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53'
+   ```
+
+   and add under the proxy service:
+
+   ```yaml
+   environment:
+     - CF_DNS_API_TOKEN=<the token>
+   ```
+
+   Save and **Restart Proxy**. Coolify's own guide, *Wildcard SSL certificates* under Knowledge Base →
+   Proxy → Traefik, has the same steps for other DNS providers and current Coolify versions.
+3. **Route the subdomains to `web`.** Add `https://*.erp.example.com:3100` to the `web` service's domains,
+   next to `https://erp.example.com:3100` and separated by a comma. If your Coolify version rejects a
+   wildcard there, add these container labels to `web` instead:
+
+   ```
+   traefik.http.routers.erp-tenants.rule=HostRegexp(`^[a-z0-9-]+\.erp\.example\.com$`)
+   traefik.http.routers.erp-tenants.entrypoints=https
+   traefik.http.routers.erp-tenants.tls.certresolver=letsencrypt
+   traefik.http.routers.erp-tenants.tls.domains[0].main=erp.example.com
+   traefik.http.routers.erp-tenants.tls.domains[0].sans=*.erp.example.com
+   traefik.http.services.erp-tenants.loadbalancer.server.port=3100
+   ```
+4. **Variables.** Allow the subdomains in CORS, and make email links use them:
+
+   ```ini
+   WEB_ORIGIN=https://erp.example.com,https://*.erp.example.com
+   MAIL_TENANT_SUBDOMAINS=true
+   ```
+
+   One `*` matches exactly one label, so `https://*.erp.example.com` allows `acme.erp.example.com` but
+   not `erp.example.com` itself, which is why both entries are needed.
+5. **Restart** the resource. No rebuild is needed if `NEXT_PUBLIC_APP_DOMAIN` is already set.
+
+Check: `https://acme.erp.example.com/login` shows the Company ID filled in as `acme` and locked, and
+signing in works without a "Network error". The company must exist; its Company ID is the subdomain.
+
 ## Known limits on Coolify
 
-* Company subdomains (`acme.erp.example.com`) need a wildcard certificate, which means configuring a
-  DNS challenge in Coolify's proxy. Until then, staff type the Company ID at login.
 * The API does not trust proxy headers, so audit-log IP addresses show the proxy's internal address
   rather than the visitor's.
 * Mailpit and Redis are development-only and are not part of the Coolify stack. Redis is not used by

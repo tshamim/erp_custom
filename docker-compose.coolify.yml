@@ -114,6 +114,9 @@ services:
       args:
         # Baked into the browser bundle at build time: the public HTTPS address of the API.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?}
+        # The web hostname without https:// (erp.example.com). Without it the first label of that
+        # hostname ("erp") is taken for a Company ID and the login form locks to it.
+        NEXT_PUBLIC_APP_DOMAIN: ${NEXT_PUBLIC_APP_DOMAIN:?}
     restart: unless-stopped
     depends_on:
       api: { condition: service_healthy }

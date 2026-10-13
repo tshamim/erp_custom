@@ -70,6 +70,7 @@ services:
       args:
         # Baked into the browser bundle, so it must be reachable from the browser, not the network alias.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4100}
+        NEXT_PUBLIC_APP_DOMAIN: ${NEXT_PUBLIC_APP_DOMAIN:-}
     image: erp-web
     restart: unless-stopped
     depends_on:

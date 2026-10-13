@@ -14,6 +14,9 @@ COPY apps/web apps/web
 # The API URL is inlined into the client bundle, so it must be the address a browser can reach.
 ARG NEXT_PUBLIC_API_URL=http://localhost:4100
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# The app's own hostname (erp.example.com); companies are its subdomains. Empty in development.
+ARG NEXT_PUBLIC_APP_DOMAIN=
+ENV NEXT_PUBLIC_APP_DOMAIN=$NEXT_PUBLIC_APP_DOMAIN
 RUN pnpm --filter @erp/shared build && pnpm --filter @erp/web build
 
 FROM base AS runner

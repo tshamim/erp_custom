@@ -9,9 +9,25 @@ function required(name: string): string {
   return v;
 }
 
+/**
+ * WEB_ORIGIN entries for CORS. One `*` label matches a single company subdomain:
+ * "https://*.erp.example.com" allows https://acme.erp.example.com but not https://erp.example.com.
+ */
+export function parseOrigins(value: string): (string | RegExp)[] {
+  return value
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+    .map((o) => {
+      if (!o.includes('*')) return o;
+      const escaped = o.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&'));
+      return new RegExp(`^${escaped.join('[a-z0-9-]+')}$`);
+    });
+}
+
 export const config = {
   port: Number(process.env.API_PORT ?? 4100),
-  webOrigin: (process.env.WEB_ORIGIN ?? 'http://localhost:3100').split(','),
+  webOrigin: parseOrigins(process.env.WEB_ORIGIN ?? 'http://localhost:3100'),
   controlDatabaseUrl: required('CONTROL_DATABASE_URL'),
   jwtSecret: required('JWT_SECRET'),
   jwtRefreshSecret: required('JWT_REFRESH_SECRET'),

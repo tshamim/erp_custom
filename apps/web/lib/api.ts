@@ -74,10 +74,22 @@ export function onSessionChange(fn: () => void) {
   return () => listeners.delete(fn);
 }
 
-/** Company slug from subdomain: acme.localhost:3100 → acme */
+/**
+ * The app's own hostname (erp.example.com), baked in at build time. Companies are subdomains of it
+ * (acme.erp.example.com); without it, the first label of any multi-label host counts (acme.localhost).
+ */
+const APP_DOMAIN = (process.env.NEXT_PUBLIC_APP_DOMAIN ?? '').trim().toLowerCase().replace(/^\.|\.$/g, '');
+
+/** Company slug from subdomain: acme.erp.example.com → acme, acme.localhost:3100 → acme */
 export function tenantFromHost(): string | null {
   if (typeof window === 'undefined') return null;
-  const labels = window.location.hostname.split('.');
+  const hostname = window.location.hostname.toLowerCase();
+  if (APP_DOMAIN) {
+    if (!hostname.endsWith(`.${APP_DOMAIN}`)) return null;
+    const label = hostname.slice(0, -APP_DOMAIN.length - 1);
+    return label.includes('.') || ['www', 'app', 'api', 'platform'].includes(label) ? null : label;
+  }
+  const labels = hostname.split('.');
   if (labels.length < 2 || /^\d+$/.test(labels[0])) return null;
   return ['www', 'app', 'localhost', 'platform'].includes(labels[0]) ? null : labels[0];
 }
