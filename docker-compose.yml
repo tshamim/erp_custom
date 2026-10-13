@@ -15,7 +15,11 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
   minio:
-    image: minio/minio:latest
+    # MinIO stopped publishing images (minio/minio, quay.io/minio/minio) in late 2025; Chainguard
+    # still builds it from source. Its default user cannot write to a fresh volume, so run as root
+    # as the old image did — existing data volumes stay compatible.
+    image: cgr.dev/chainguard/minio:latest
+    user: "0"
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
