@@ -1,6 +1,6 @@
-import { Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { loginSchema, LoginDto } from '@erp/shared';
+import { changePasswordSchema, ChangePasswordDto, loginSchema, LoginDto } from '@erp/shared';
 import { AuthService } from './auth.service';
 import { CurrentUser, JwtPayload, PlatformOnly, Public } from './decorators';
 import { ZBody } from '../common/zod';
@@ -51,6 +51,15 @@ export class AuthController {
     await this.auth.logout(user.sub);
     res.clearCookie(cookieName(this.ctx.tenant.slug), { path: '/' });
     return { ok: true };
+  }
+
+  @Post('password')
+  @HttpCode(200)
+  async changePassword(@CurrentUser() user: JwtPayload, @ZBody(changePasswordSchema) dto: ChangePasswordDto, @Res({ passthrough: true }) res: Response) {
+    if (user.imp) throw new ForbiddenException('Support sessions cannot change the user password');
+    const { accessToken, refreshToken } = await this.auth.changePassword(user.sub, dto.currentPassword, dto.newPassword);
+    setRefreshCookie(res, cookieName(this.ctx.tenant.slug), refreshToken);
+    return { accessToken };
   }
 
   @Get('me')

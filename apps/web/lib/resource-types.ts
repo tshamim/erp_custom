@@ -58,6 +58,10 @@ export interface LinesDef {
   newLine: () => Row;
   /** Right-aligned computed column, e.g. qty × price. */
   amount?: (line: Row) => number;
+  /** Lines a new form starts with (a journal needs two). */
+  minLines?: number;
+  /** Show debit and credit totals and the difference under the lines. */
+  balance?: { debit: string; credit: string };
 }
 
 export interface ActionDef {

@@ -43,6 +43,12 @@ export const loginSchema = z.object({
 });
 export type LoginDto = z.infer<typeof loginSchema>;
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Enter your current password'),
+  newPassword: z.string().min(8, 'At least 8 characters').max(200),
+});
+export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;
+
 export const createTenantSchema = z.object({
   slug: z
     .string()
@@ -491,10 +497,12 @@ export const accountSchema = z.object({
 });
 export type AccountDto = z.infer<typeof accountSchema>;
 
+/** A blank debit or credit cell means zero. */
+const blankIsZero = (v: unknown) => (v === null || v === undefined || (typeof v === 'string' && v.trim() === '') ? '0' : v);
 export const journalLineSchema = z.object({
   accountId: uuid,
-  debit: nonNegDecimal.default('0'),
-  credit: nonNegDecimal.default('0'),
+  debit: z.preprocess(blankIsZero, nonNegDecimal),
+  credit: z.preprocess(blankIsZero, nonNegDecimal),
   partyId: optUuid,
   projectId: optUuid,
   departmentId: optUuid,
@@ -504,7 +512,7 @@ export const journalEntrySchema = z.object({
   date: isoDate,
   reference: optStr,
   narration: optStr,
-  lines: z.array(journalLineSchema).min(2),
+  lines: z.array(journalLineSchema).min(2, 'A journal needs at least two lines: one debit and one credit'),
 });
 export type JournalEntryDto = z.infer<typeof journalEntrySchema>;
 

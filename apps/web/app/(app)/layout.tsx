@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, HardHat, LogOut, Menu } from 'lucide-react';
+import { ChevronDown, HardHat, KeyRound, LogOut, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, Suspense, useEffect, useState } from 'react';
@@ -81,6 +81,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="border-t border-slate-800 px-4 py-3">
         <div className="truncate text-sm text-white">{session.profile.user.name}</div>
         <div className="truncate text-xs text-slate-500">{session.profile.roles?.join(', ')}</div>
+        {!session.profile.impersonatedBy && (
+          <Link href="/account" className="mt-2 flex items-center gap-1 text-xs text-slate-400 hover:text-white">
+            <KeyRound className="h-3.5 w-3.5" /> Change password
+          </Link>
+        )}
         <button onClick={logout} className="mt-2 flex items-center gap-1 text-xs text-slate-400 hover:text-white">
           <LogOut className="h-3.5 w-3.5" /> Sign out
         </button>

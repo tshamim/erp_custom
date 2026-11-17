@@ -355,6 +355,8 @@ function LineCell({ col, value, onChange, onPick }: { col: LineColumn; value: un
 export function LinesEditor({ def, lines, setLines }: { def: NonNullable<NonNullable<ResourceDef['form']>['lines']>; lines: Row[]; setLines: (l: Row[]) => void }) {
   const update = (i: number, patch: Row) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const total = def.amount ? lines.reduce((a, l) => a + def.amount!(l), 0) : null;
+  const sumOf = (k: string) => lines.reduce((a, l) => a + (Number(l[k]) || 0), 0);
+  const bal = def.balance ? { dr: sumOf(def.balance.debit), cr: sumOf(def.balance.credit) } : null;
   return (
     <Card title="Lines" className="mt-4" actions={<Button type="button" size="sm" variant="secondary" onClick={() => setLines([...lines, def.newLine()])}><Plus className="h-3.5 w-3.5" /> Add line</Button>}>
       <div className="overflow-x-auto">
@@ -402,6 +404,17 @@ export function LinesEditor({ def, lines, setLines }: { def: NonNullable<NonNull
           )}
         </table>
       </div>
+      {bal && (
+        <div className="mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 border-t border-slate-100 pt-3 text-sm">
+          <span>Total debit <b className="num">{money(bal.dr)}</b></span>
+          <span>Total credit <b className="num">{money(bal.cr)}</b></span>
+          {Math.abs(bal.dr - bal.cr) < 0.005 ? (
+            <span className="font-medium text-emerald-600">{bal.dr > 0 ? "Balanced" : "Enter amounts"}</span>
+          ) : (
+            <span className="font-medium text-red-600">Out of balance by <span className="num">{money(Math.abs(bal.dr - bal.cr))}</span></span>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -421,7 +434,7 @@ function cleanBody(values: Row, def: ResourceDef, isEdit: boolean): Row {
     out[f.name] = v;
   }
   if (def.form!.lines) {
-    out.lines = (values.lines as Row[]).map((l) => Object.fromEntries(Object.entries(l).map(([k, v]) => [k, v === '' ? null : v])));
+    out.lines = (values.lines as Row[]).map((l) => Object.fromEntries(Object.entries(l).filter(([, v]) => v !== '' && v !== undefined)));
   }
   return def.form!.transform ? def.form!.transform(out) : out;
 }
@@ -432,7 +445,7 @@ export function ResourceForm({ def, id, initial }: { def: ResourceDef; id?: stri
   const defaults = useMemo(() => {
     const d: Row = {};
     for (const f of def.form!.fields) d[f.name] = f.default ?? (f.type === 'checkbox' ? false : '');
-    if (def.form!.lines) d.lines = [def.form!.lines.newLine()];
+    if (def.form!.lines) d.lines = Array.from({ length: def.form!.lines.minLines ?? 1 }, () => def.form!.lines!.newLine());
     return { ...d, ...initial };
   }, [def, initial]);
   const [values, setValues] = useState<Row>(defaults);

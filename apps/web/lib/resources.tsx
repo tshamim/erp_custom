@@ -833,6 +833,8 @@ export const RESOURCES: Record<string, ResourceDef> = {
           { name: 'description', label: 'Memo', width: '15%' },
         ],
         newLine: () => ({ accountId: '', debit: '', credit: '', partyId: '', projectId: '', description: '' }),
+        minLines: 2,
+        balance: { debit: 'debit', credit: 'credit' },
       },
     },
     detail: {
@@ -850,7 +852,7 @@ export const RESOURCES: Record<string, ResourceDef> = {
       },
       actions: [
         { label: 'Post', path: (r) => `/journals/${r.id}/post`, when: (r) => r.status === 'draft', perm: 'finance.journal.post' },
-        { label: 'Reverse', path: (r) => `/journals/${r.id}/reverse`, when: (r) => r.status === 'posted' && r.sourceType === 'manual', perm: 'finance.journal.post', variant: 'secondary', confirm: 'Post a reversing entry dated today?', redirect: (res) => `/m/journals/${res.id}` },
+        { label: 'Reverse', path: (r) => `/journals/${r.id}/reverse`, when: (r) => r.status === 'posted' && r.sourceType === 'manual' && !r.reversalOfId, perm: 'finance.journal.post', variant: 'secondary', confirm: 'Post a reversing entry dated today?', redirect: (res) => `/m/journals/${res.id}` },
         { label: 'Delete draft', path: (r) => `/journals/${r.id}`, method: 'delete', when: (r) => r.status === 'draft', variant: 'danger', confirm: 'Delete this draft?', redirect: () => '/m/journals' },
       ],
     },

@@ -168,14 +168,20 @@ export function ImportDialog({ resource, open, onClose, projectId }: { resource:
     }
   }, [open]);
 
+  const [busyMode, setBusyMode] = useState<null | 'validate' | 'import'>(null);
+  /** Validate only, or validate and — when every row is clean — import in the same click. */
   const send = async (dryRun: boolean) => {
     if (!rows) return;
     setBusy(true);
+    setBusyMode(dryRun ? 'validate' : 'import');
     setError(null);
     try {
-      const r = await post<ImportResult>(`/import/${resource}${qs({ dryRun })}`, { rows, projectId });
+      const check = await post<ImportResult>(`/import/${resource}${qs({ dryRun: true })}`, { rows, projectId });
+      setResult(check);
+      if (dryRun || check.errors.length) return;
+      const r = await post<ImportResult>(`/import/${resource}${qs({ dryRun: false })}`, { rows, projectId });
       setResult(r);
-      if (!dryRun && r.created) {
+      if (r.created) {
         toast(`${r.created} ${tpl.label.toLowerCase()} imported`);
         await qc.invalidateQueries();
         onClose();
@@ -184,6 +190,7 @@ export function ImportDialog({ resource, open, onClose, projectId }: { resource:
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      setBusyMode(null);
     }
   };
 
@@ -200,7 +207,7 @@ export function ImportDialog({ resource, open, onClose, projectId }: { resource:
             (columns: <code className="text-xs">{tpl.columns.join(', ')}</code>; required: {tpl.required.join(', ')}).
           </li>
           <li>Fill it in Excel / Google Sheets and save as CSV (UTF-8).</li>
-          <li>Upload, validate, then import. The import is all-or-nothing — fix every error first.</li>
+          <li>Upload and press Import. Every row is checked first and nothing is saved unless all rows are valid; Validate only checks. Dates may be 2026-07-01, 01/07/2026 or 1-Jul-2026; departments, units and warehouses may be given by code or name.</li>
         </ol>
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed border-slate-300 p-6 text-slate-500 hover:border-brand-500">
           <Upload className="h-5 w-5" />
@@ -216,7 +223,11 @@ export function ImportDialog({ resource, open, onClose, projectId }: { resource:
               setError(null);
               setFileName(f.name);
               try {
-                setRows(await parseCsv(f));
+                // Match retyped headers ("First Name") to the template column (firstName).
+                const squash = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const byKey = new Map<string, string>(tpl.columns.map((c) => [squash(c), c]));
+                const parsed = await parseCsv(f);
+                setRows(parsed.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [byKey.get(squash(k)) ?? k, v]))));
               } catch (err) {
                 setError((err as Error).message);
               }
@@ -248,10 +259,10 @@ export function ImportDialog({ resource, open, onClose, projectId }: { resource:
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" disabled={!rows?.length || missing.length > 0} loading={busy && !result} onClick={() => send(true)}>
+          <Button variant="secondary" disabled={!rows?.length || missing.length > 0} loading={busyMode === 'validate'} onClick={() => send(true)}>
             Validate
           </Button>
-          <Button disabled={!rows?.length || missing.length > 0 || !!result?.errors.length || !result} loading={busy && !!result} onClick={() => send(false)}>
+          <Button disabled={!rows?.length || missing.length > 0 || !!result?.errors.length || busy} loading={busyMode === 'import'} onClick={() => send(false)}>
             Import {rows?.length ?? ''} rows
           </Button>
         </div>

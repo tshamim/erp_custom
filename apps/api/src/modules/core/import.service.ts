@@ -21,6 +21,7 @@ import { NumberingService } from '../../common/numbering.service';
 import { PermissionCache } from '../../auth/permission-cache.service';
 import { StockDocumentsService } from '../inventory/inventory.service';
 import { D, m2, q4 } from '../../common/money';
+import { longNumber, normalizeAmount as amt, normalizeDate, normalizeEnum as en, normalizeGender, normalizePhone as phone } from './import-normalize';
 
 export interface ImportResult {
   resource: ImportResource;
@@ -56,24 +57,33 @@ export class ImportService {
   ) {}
 
   private async lookups(db: TenantDb) {
-    const map = <T extends { id: string }>(rows: T[], key: (r: T) => string) => new Map(rows.map((r) => [key(r).toLowerCase(), r.id]));
+    /** Keyed by code and, where there is one, by name too, so a file may use either. */
+    const map = <T extends { id: string }>(rows: T[], key: (r: T) => string, alt?: (r: T) => string | null) => {
+      const m = new Map<string, string>();
+      for (const r of rows) {
+        const a = alt?.(r);
+        if (a) m.set(a.trim().toLowerCase(), r.id);
+      }
+      for (const r of rows) m.set(key(r).trim().toLowerCase(), r.id);
+      return m;
+    };
     const [uoms, cats, taxes, depts, desigs, items, whs] = await Promise.all([
-      db.select({ id: t.uoms.id, code: t.uoms.code }).from(t.uoms),
-      db.select({ id: t.itemCategories.id, code: t.itemCategories.code }).from(t.itemCategories),
+      db.select({ id: t.uoms.id, code: t.uoms.code, name: t.uoms.name }).from(t.uoms),
+      db.select({ id: t.itemCategories.id, code: t.itemCategories.code, name: t.itemCategories.name }).from(t.itemCategories),
       db.select({ id: t.taxCodes.id, code: t.taxCodes.code }).from(t.taxCodes),
-      db.select({ id: t.departments.id, code: t.departments.code }).from(t.departments),
+      db.select({ id: t.departments.id, code: t.departments.code, name: t.departments.name }).from(t.departments),
       db.select({ id: t.designations.id, name: t.designations.name }).from(t.designations),
       db.select({ id: t.items.id, code: t.items.code }).from(t.items),
-      db.select({ id: t.warehouses.id, code: t.warehouses.code }).from(t.warehouses),
+      db.select({ id: t.warehouses.id, code: t.warehouses.code, name: t.warehouses.name }).from(t.warehouses),
     ]);
     return {
-      uom: map(uoms, (r) => r.code),
-      category: map(cats, (r) => r.code),
+      uom: map(uoms, (r) => r.code, (r) => r.name),
+      category: map(cats, (r) => r.code, (r) => r.name),
       tax: map(taxes, (r) => r.code),
-      dept: map(depts, (r) => r.code),
+      dept: map(depts, (r) => r.code, (r) => r.name),
       desig: map(desigs, (r) => r.name),
       item: map(items, (r) => r.code),
-      warehouse: map(whs, (r) => r.code),
+      warehouse: map(whs, (r) => r.code, (r) => r.name),
     };
   }
 
@@ -96,30 +106,38 @@ export class ImportService {
         return null;
       }
       const id = m.get(s.toLowerCase());
-      if (!id) throw new Error(`Unknown ${what} "${s}"`);
+      if (!id) {
+        const choices = [...new Set(m.keys())].slice(0, 12).join(', ');
+        throw new Error(`Unknown ${what} "${s}" — use one of: ${choices}${m.size > 12 ? ', …' : ''}`);
+      }
       return id;
     };
 
     const shape: Record<ImportResource, { schema: ZodTypeAny; map: (r: Raw) => Record<string, unknown> }> = {
       items: {
         schema: itemSchema,
-        map: (r) => ({ code: clean(r.code), name: clean(r.name), uomId: ref(lk.uom, r.unit, 'unit', true), categoryId: ref(lk.category, r.category, 'category'), type: clean(r.type) ?? 'stock', reorderLevel: clean(r.reorderLevel) ?? '0', standardCost: clean(r.standardCost) ?? null, specification: clean(r.specification) ?? null, defaultVatCodeId: ref(lk.tax, r.vatCode, 'VAT code') }),
+        map: (r) => ({ code: clean(r.code), name: clean(r.name), uomId: ref(lk.uom, r.unit, 'unit', true), categoryId: ref(lk.category, r.category, 'category'), type: en(r.type) ?? 'stock', reorderLevel: amt(r.reorderLevel) ?? '0', standardCost: amt(r.standardCost) ?? null, specification: clean(r.specification) ?? null, defaultVatCodeId: ref(lk.tax, r.vatCode, 'VAT code') }),
       },
       parties: {
         schema: partySchema,
-        map: (r) => ({ type: clean(r.type)?.toLowerCase(), code: clean(r.code), name: clean(r.name), contactPerson: clean(r.contactPerson) ?? null, phone: clean(r.phone) ?? null, email: clean(r.email) ?? null, address: clean(r.address) ?? null, binNo: clean(r.binNo) ?? null, tin: clean(r.tin) ?? null, vendorCategory: clean(r.vendorCategory) ?? null, paymentTermsDays: clean(r.paymentTermsDays) ?? 30 }),
+        map: (r) => ({ type: en(r.type), code: clean(r.code), name: clean(r.name), contactPerson: clean(r.contactPerson) ?? null, phone: phone(r.phone) ?? null, email: clean(r.email) ?? null, address: clean(r.address) ?? null, binNo: clean(r.binNo) ?? null, tin: clean(r.tin) ?? null, vendorCategory: clean(r.vendorCategory) ?? null, paymentTermsDays: amt(r.paymentTermsDays) ?? 30 }),
       },
       employees: {
         schema: employeeSchema,
-        map: (r) => ({ code: clean(r.code), firstName: clean(r.firstName), lastName: clean(r.lastName) ?? null, gender: clean(r.gender)?.toLowerCase() ?? null, phone: clean(r.phone) ?? null, email: clean(r.email) ?? null, nid: clean(r.nid) ?? null, departmentId: ref(lk.dept, r.department, 'department'), designationId: ref(lk.desig, r.designation, 'designation'), employmentType: clean(r.employmentType) ?? 'permanent', joiningDate: clean(r.joiningDate), dailyWage: clean(r.dailyWage) ?? null, bankAccountNo: clean(r.bankAccountNo) ?? null }),
+        map: (r) => ({ code: clean(r.code), firstName: clean(r.firstName), lastName: clean(r.lastName) ?? null, gender: normalizeGender(r.gender) ?? null, phone: phone(r.phone) ?? null, email: clean(r.email) ?? null, nid: longNumber(r.nid, 'NID') ?? null, departmentId: ref(lk.dept, r.department, 'department'), designationId: ref(lk.desig, r.designation, 'designation'), employmentType: en(r.employmentType) ?? 'permanent', joiningDate: normalizeDate(r.joiningDate), dailyWage: amt(r.dailyWage) ?? null, bankAccountNo: longNumber(r.bankAccountNo, 'Bank account') ?? null }),
       },
       departments: { schema: departmentSchema, map: (r) => ({ code: clean(r.code), name: clean(r.name) }) },
       designations: { schema: designationSchema, map: (r) => ({ name: clean(r.name), grade: clean(r.grade) ?? null }) },
-      warehouses: { schema: warehouseSchema, map: (r) => ({ code: clean(r.code), name: clean(r.name), type: clean(r.type) ?? 'central', address: clean(r.address) ?? null }) },
-      equipment: { schema: equipmentSchema, map: (r) => ({ code: clean(r.code), name: clean(r.name), type: clean(r.type) ?? null, ownership: clean(r.ownership) ?? 'owned', hourlyRate: clean(r.hourlyRate) ?? '0' }) },
-      boq: { schema: boqRow, map: (r) => ({ code: clean(r.code), description: clean(r.description), uom: clean(r.uom) ?? null, quantity: clean(r.quantity) ?? '0', rate: clean(r.rate) ?? '0', isSection: yes(r.isSection) }) },
-      'opening-stock': { schema: stockRow, map: (r) => ({ warehouseId: ref(lk.warehouse, r.warehouse, 'warehouse', true), itemId: ref(lk.item, r.item, 'item', true), quantity: clean(r.quantity), unitCost: clean(r.unitCost) }) },
+      warehouses: { schema: warehouseSchema, map: (r) => ({ code: clean(r.code), name: clean(r.name), type: en(r.type) ?? 'central', address: clean(r.address) ?? null }) },
+      equipment: { schema: equipmentSchema, map: (r) => ({ code: clean(r.code), name: clean(r.name), type: clean(r.type) ?? null, ownership: en(r.ownership) ?? 'owned', hourlyRate: amt(r.hourlyRate) ?? '0' }) },
+      boq: { schema: boqRow, map: (r) => ({ code: clean(r.code), description: clean(r.description), uom: clean(r.uom) ?? null, quantity: amt(r.quantity) ?? '0', rate: amt(r.rate) ?? '0', isSection: yes(r.isSection) }) },
+      'opening-stock': { schema: stockRow, map: (r) => ({ warehouseId: ref(lk.warehouse, r.warehouse, 'warehouse', true), itemId: ref(lk.item, r.item, 'item', true), quantity: amt(r.quantity), unitCost: amt(r.unitCost) }) },
     };
+
+    // Headers retyped by hand ("First Name", "joining date") still find their column.
+    const squash = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const byKey = new Map<string, string>(tpl.columns.map((c: string) => [squash(c), c]));
+    rows = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [byKey.get(squash(k)) ?? k, v])));
 
     const seen = new Set<string>();
     rows.forEach((raw, i) => {

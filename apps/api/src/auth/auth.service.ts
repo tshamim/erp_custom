@@ -1,8 +1,10 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { and, eq, sql } from 'drizzle-orm';
 import { TenantModulesService } from '../tenancy/tenant-modules.service';
-import { verify } from '@node-rs/argon2';
+import { hash, verify } from '@node-rs/argon2';
+import { MailService } from '../mail/mail.service';
+import { passwordChanged } from '../mail/templates';
 import { controlSchema, tenantSchema as t } from '@erp/db';
 import type { LoginDto } from '@erp/shared';
 import { CONTROL_DB, ControlDb } from '../control/control.module';
@@ -25,6 +27,7 @@ export class AuthService {
     private readonly perms: PermissionCache,
     private readonly modules: TenantModulesService,
     @Inject(CONTROL_DB) private readonly control: ControlDb,
+    private readonly mail: MailService,
   ) {}
 
   private async issue(payload: JwtPayload, ver: number) {
@@ -124,6 +127,30 @@ export class AuthService {
     const [user] = await this.ctx.db.select().from(t.users).where(eq(t.users.id, p.sub));
     if (!user?.isActive || user.tokenVersion !== p.ver) throw new UnauthorizedException('Session revoked');
     return this.issue({ sub: user.id, scope: 'tenant', tid: tenant.id, name: user.name }, user.tokenVersion);
+  }
+
+  /**
+   * A signed-in user changes their own password. Every other session is signed out (the token
+   * version moves on); this one gets fresh tokens so the person stays signed in.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const db = this.ctx.db;
+    const [user] = await db.select().from(t.users).where(eq(t.users.id, userId));
+    if (!user || !user.isActive) throw new UnauthorizedException();
+    if (!(await verify(user.passwordHash, currentPassword))) throw new BadRequestException('Current password is incorrect');
+    if (currentPassword === newPassword) throw new BadRequestException('The new password must be different from the current one');
+    const [row] = await db
+      .update(t.users)
+      .set({ passwordHash: await hash(newPassword), tokenVersion: sql`${t.users.tokenVersion} + 1` })
+      .where(eq(t.users.id, userId))
+      .returning({ tokenVersion: t.users.tokenVersion });
+    this.perms.invalidate(this.ctx.tenant.id, userId);
+    await this.audit.log('password_change', 'user', userId);
+    void this.mail.send({
+      to: { email: user.email, name: user.name },
+      ...passwordChanged({ company: this.ctx.tenant.name, slug: this.ctx.tenant.slug, name: user.name, by: 'you' }),
+    });
+    return this.issue({ sub: user.id, scope: 'tenant', tid: this.ctx.tenant.id, name: user.name }, row.tokenVersion);
   }
 
   /** Revokes all refresh tokens of the user. */
